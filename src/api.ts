@@ -1,0 +1,48 @@
+import type { Generation, ModelPreset, PromptAssistResponse } from './types';
+
+const API_BASE_URL = 'http://127.0.0.1:8001/api';
+
+async function requestJSON<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init?.headers ?? {}),
+    },
+    ...init,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Request failed: ${response.status}`);
+  }
+
+  return (await response.json()) as T;
+}
+
+export async function loadModels(): Promise<ModelPreset[]> {
+  return requestJSON<ModelPreset[]>('/models');
+}
+
+export async function loadGenerations(): Promise<Generation[]> {
+  return requestJSON<Generation[]>('/generations');
+}
+
+export async function createGeneration(input: Record<string, unknown>): Promise<Generation> {
+  return requestJSON<Generation>('/generations', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function retryGeneration(id: string): Promise<Generation> {
+  return requestJSON<Generation>(`/generations/${id}/retry`, {
+    method: 'POST',
+  });
+}
+
+export async function assistPrompt(input: Record<string, unknown>): Promise<PromptAssistResponse> {
+  return requestJSON<PromptAssistResponse>('/prompt/assist', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
