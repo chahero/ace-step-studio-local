@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { assistPrompt, createGeneration, loadGenerations, loadModels, retryGeneration } from './api';
+import { assistPrompt, createGeneration, generatePromptIdea, loadGenerations, loadModels, retryGeneration } from './api';
 import type { Generation, ModelPreset } from './types';
 
 const defaultForm = {
@@ -23,6 +23,7 @@ const API_ROOT = 'http://127.0.0.1:8001';
 const SIDEBAR_MIN = 320;
 const SIDEBAR_MAX = 760;
 const DEFAULT_SIDEBAR_WIDTH = 380;
+const DETAIL_PANEL_WIDTH = 340;
 type PanelTab = 'simple' | 'advanced' | 'sounds';
 type LibraryStatusFilter = 'all' | Generation['status'];
 type LibrarySortMode = 'newest' | 'oldest';
@@ -97,11 +98,23 @@ function formatTime(value: string) {
   }).format(new Date(value));
 }
 
+function formatAudioTime(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return '0:00';
+  }
+
+  const totalSeconds = Math.floor(seconds);
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainder = totalSeconds % 60;
+  return `${minutes}:${String(remainder).padStart(2, '0')}`;
+}
+
 export default function App() {
   const [models, setModels] = useState<ModelPreset[]>([]);
   const [generations, setGenerations] = useState<Generation[]>([]);
   const [loading, setLoading] = useState(false);
   const [assistLoading, setAssistLoading] = useState(false);
+  const [ideaLoading, setIdeaLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(defaultForm);
@@ -111,6 +124,9 @@ export default function App() {
   const [librarySearch, setLibrarySearch] = useState('');
   const [libraryStatusFilter, setLibraryStatusFilter] = useState<LibraryStatusFilter>('all');
   const [librarySortMode, setLibrarySortMode] = useState<LibrarySortMode>('newest');
+  const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
+  const [playerCurrentTime, setPlayerCurrentTime] = useState(0);
+  const [playerDuration, setPlayerDuration] = useState(0);
   const dragState = useRef<{ startX: number; startWidth: number } | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -178,6 +194,11 @@ export default function App() {
       });
   }, [generations, librarySearch, librarySortMode, libraryStatusFilter]);
 
+  const activeGenerationIndex = useMemo(
+    () => filteredGenerations.findIndex((generation) => generation.id === activeGeneration?.id),
+    [activeGeneration, filteredGenerations],
+  );
+
   async function refreshGenerations() {
     const data = await loadGenerations();
     setGenerations(data);
@@ -222,6 +243,31 @@ export default function App() {
       setError(cause instanceof Error ? cause.message : 'Prompt assist failed');
     } finally {
       setAssistLoading(false);
+    }
+  }
+
+  async function onGenerateIdea() {
+    setIdeaLoading(true);
+    setError(null);
+
+    try {
+      const response = await generatePromptIdea({
+        prompt: form.prompt,
+        lyrics: form.lyrics,
+        language: form.language,
+        model_preset_id: form.model_preset_id,
+      });
+
+      setForm((current) => ({
+        ...current,
+        prompt: response.prompt || current.prompt,
+        tags: response.tags || current.tags,
+        lyrics: response.lyrics || current.lyrics,
+      }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Idea generation failed');
+    } finally {
+      setIdeaLoading(false);
     }
   }
 
@@ -279,10 +325,45 @@ export default function App() {
       return;
     }
 
+    const syncPlaybackState = () => {
+      setPlayerCurrentTime(audio.currentTime || 0);
+      setPlayerDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
+    };
+
+    const onTimeUpdate = () => {
+      setPlayerCurrentTime(audio.currentTime || 0);
+    };
+
+    const onLoadedMetadata = () => {
+      setPlayerDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
+    };
+
     audio.pause();
     audio.load();
     setIsPlaying(false);
+    setPlayerCurrentTime(0);
+    setPlayerDuration(0);
+
+    audio.addEventListener('timeupdate', onTimeUpdate);
+    audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    audio.addEventListener('durationchange', syncPlaybackState);
+
+    return () => {
+      audio.removeEventListener('timeupdate', onTimeUpdate);
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.removeEventListener('durationchange', syncPlaybackState);
+    };
   }, [currentAudioUrl]);
+
+  function seekAudio(value: number) {
+    const audio = audioRef.current;
+    if (!audio || !Number.isFinite(value)) {
+      return;
+    }
+
+    audio.currentTime = value;
+    setPlayerCurrentTime(value);
+  }
 
   function togglePlayback() {
     const audio = audioRef.current;
@@ -295,6 +376,24 @@ export default function App() {
     } else {
       audio.pause();
     }
+  }
+
+  function playPrevious() {
+    if (activeGenerationIndex <= 0) {
+      return;
+    }
+
+    setIsDetailPanelOpen(true);
+    setActiveGenerationId(filteredGenerations[activeGenerationIndex - 1]?.id ?? null);
+  }
+
+  function playNext() {
+    if (activeGenerationIndex < 0 || activeGenerationIndex >= filteredGenerations.length - 1) {
+      return;
+    }
+
+    setIsDetailPanelOpen(true);
+    setActiveGenerationId(filteredGenerations[activeGenerationIndex + 1]?.id ?? null);
   }
 
   function onResizeStart(event: ReactPointerEvent<HTMLDivElement>) {
@@ -326,7 +425,7 @@ export default function App() {
 
   return (
     <div
-      className="app-shell"
+      className={`app-shell ${isDetailPanelOpen && activeGeneration ? 'has-detail-panel' : ''}`}
       style={{ ['--sidebar-width' as '--sidebar-width']: `${sidebarWidth}px` } as CSSProperties}
     >
       <aside className="sidebar">
@@ -372,6 +471,15 @@ export default function App() {
             ))}
           </div>
 
+          <div className="sidebar-actions">
+            <button className="secondary-button" type="button" onClick={onAssist} disabled={assistLoading}>
+              {assistLoading ? 'Refining...' : 'Refine Prompt'}
+            </button>
+            <button className="secondary-button" type="button" onClick={onGenerateIdea} disabled={ideaLoading}>
+              {ideaLoading ? 'Inspiring...' : 'Generate Idea'}
+            </button>
+          </div>
+
           {activeTab === 'simple' ? (
             <div className="panel-stack">
               <label className="block-field">
@@ -396,9 +504,6 @@ export default function App() {
                 />
               </label>
 
-              <button className="secondary-button" type="button" onClick={onAssist} disabled={assistLoading}>
-                {assistLoading ? 'Assisting...' : 'Assist Prompt'}
-              </button>
             </div>
           ) : null}
 
@@ -529,9 +634,6 @@ export default function App() {
                 />
               </label>
 
-              <button className="secondary-button" type="button" onClick={onAssist} disabled={assistLoading}>
-                {assistLoading ? 'Assisting...' : 'Assist Prompt'}
-              </button>
             </div>
           ) : null}
 
@@ -556,7 +658,7 @@ export default function App() {
         onLostPointerCapture={onResizeEnd}
       />
 
-      <main className="content">
+      <main className={`content ${isDetailPanelOpen && activeGeneration ? 'has-detail-panel' : ''}`}>
         <section className="workspace-header">
           <div>
             <div className="eyebrow">LOCAL STUDIO</div>
@@ -618,7 +720,10 @@ export default function App() {
                   key={generation.id}
                   type="button"
                   className={`history-item ${generation.id === activeGeneration?.id ? 'is-active' : ''}`}
-                  onClick={() => setActiveGenerationId(generation.id)}
+                  onClick={() => {
+                    setActiveGenerationId(generation.id);
+                    setIsDetailPanelOpen(true);
+                  }}
                 >
                   <div className="history-left">
                     <div className="library-thumb" />
@@ -643,6 +748,62 @@ export default function App() {
           </div>
         </section>
 
+        <aside
+          className={`detail-panel-shell ${isDetailPanelOpen && activeGeneration ? 'is-open' : ''}`}
+          style={{ ['--detail-panel-width' as '--detail-panel-width']: `${DETAIL_PANEL_WIDTH}px` } as CSSProperties}
+        >
+          {activeGeneration ? (
+            <div className="detail-panel">
+              <div className="detail-panel-top">
+                <div>
+                  <div className="detail-eyebrow">Song details</div>
+                  <h3>{activeGeneration.prompt}</h3>
+                </div>
+                <button className="detail-close" type="button" onClick={() => setIsDetailPanelOpen(false)} aria-label="Close details">
+                  ×
+                </button>
+              </div>
+
+              <div className="detail-art" />
+
+              <div className="detail-meta-row">
+                <span>{activeGeneration.model_preset_id}</span>
+                <span>{activeGeneration.bpm ?? '-'} BPM</span>
+                <span>{activeGeneration.duration ?? '-'} sec</span>
+                <span>{activeGeneration.language ?? '-'}</span>
+              </div>
+
+              <div className="detail-actions">
+                {getAudioUrl(activeGeneration) ? (
+                  <a className="secondary-button link-button detail-action" href={getAudioUrl(activeGeneration) ?? '#'} target="_blank" rel="noreferrer">
+                    Open audio
+                  </a>
+                ) : null}
+                <button className="secondary-button detail-action" type="button" onClick={() => onRetry(activeGeneration.id)}>
+                  Retry
+                </button>
+              </div>
+
+              <div className="detail-block">
+                <div className="detail-block-title">Tags</div>
+                <div className="detail-text">{activeGeneration.tags || 'No tags'}</div>
+              </div>
+
+              <div className="detail-block">
+                <div className="detail-block-title">Lyrics</div>
+                <div className="detail-lyrics">{activeGeneration.lyrics?.trim() || 'No lyrics provided.'}</div>
+              </div>
+
+              {activeGeneration.error_message ? (
+                <div className="detail-block">
+                  <div className="detail-block-title">Error</div>
+                  <div className="detail-text error-text">{activeGeneration.error_message}</div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </aside>
+
         <footer className="player-bar">
           <audio
             ref={audioRef}
@@ -661,10 +822,41 @@ export default function App() {
             </div>
           </div>
 
-          <div className="player-controls">
-            <button className="secondary-button player-button" type="button" onClick={togglePlayback} disabled={!currentAudioUrl}>
-              {isPlaying ? 'Pause' : 'Play'}
-            </button>
+          <div className="player-center">
+            <div className="player-controls">
+              <button className="secondary-button player-button" type="button" onClick={playPrevious} disabled={activeGenerationIndex <= 0}>
+                Prev
+              </button>
+              <button className="secondary-button player-button player-button-primary" type="button" onClick={togglePlayback} disabled={!currentAudioUrl}>
+                {isPlaying ? 'Pause' : 'Play'}
+              </button>
+              <button
+                className="secondary-button player-button"
+                type="button"
+                onClick={playNext}
+                disabled={activeGenerationIndex < 0 || activeGenerationIndex >= filteredGenerations.length - 1}
+              >
+                Next
+              </button>
+            </div>
+
+            <div className="player-scrubber">
+              <span>{formatAudioTime(playerCurrentTime)}</span>
+              <input
+                className="player-range"
+                type="range"
+                min={0}
+                max={Math.max(playerDuration, 1)}
+                step="0.1"
+                value={Math.min(playerCurrentTime, Math.max(playerDuration, 1))}
+                onChange={(event) => seekAudio(Number(event.target.value))}
+                disabled={!currentAudioUrl || playerDuration <= 0}
+              />
+              <span>{formatAudioTime(playerDuration)}</span>
+            </div>
+          </div>
+
+          <div className="player-actions">
             {currentAudioUrl ? (
               <a className="secondary-button player-button" href={currentAudioUrl} target="_blank" rel="noreferrer">
                 Open

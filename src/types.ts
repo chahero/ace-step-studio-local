@@ -36,3 +36,9 @@ export type PromptAssistResponse = {
   tags: string;
   lyrics: string;
 };
+
+export type PromptIdeaResponse = {
+  prompt: string;
+  tags: string;
+  lyrics: string;
+};

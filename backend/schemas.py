@@ -20,3 +20,10 @@ class PromptAssistRequest(BaseModel):
     prompt: str
     lyrics: str | None = None
     language: str | None = None
+
+
+class PromptIdeaRequest(BaseModel):
+    prompt: str | None = None
+    lyrics: str | None = None
+    language: str | None = None
+    model_preset_id: str | None = None

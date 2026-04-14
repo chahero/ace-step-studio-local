@@ -1,4 +1,4 @@
-import type { Generation, ModelPreset, PromptAssistResponse } from './types';
+import type { Generation, ModelPreset, PromptAssistResponse, PromptIdeaResponse } from './types';
 
 const API_BASE_URL = 'http://127.0.0.1:8001/api';
 
@@ -42,6 +42,13 @@ export async function retryGeneration(id: string): Promise<Generation> {
 
 export async function assistPrompt(input: Record<string, unknown>): Promise<PromptAssistResponse> {
   return requestJSON<PromptAssistResponse>('/prompt/assist', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function generatePromptIdea(input: Record<string, unknown>): Promise<PromptIdeaResponse> {
+  return requestJSON<PromptIdeaResponse>('/prompt/idea', {
     method: 'POST',
     body: JSON.stringify(input),
   });

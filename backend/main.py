@@ -11,7 +11,7 @@ from backend.db import (
     mark_generation_retry,
     update_generation_status,
 )
-from backend.schemas import GenerationCreate, PromptAssistRequest
+from backend.schemas import GenerationCreate, PromptAssistRequest, PromptIdeaRequest
 from backend.services import comfyui, ollama, storage
 
 app = FastAPI(title="Ace Step Studio API", version="0.1.0")
@@ -75,6 +75,11 @@ def retry_generation(generation_id: str, background_tasks: BackgroundTasks) -> d
 @app.post("/api/prompt/assist")
 def assist_prompt(payload: PromptAssistRequest) -> dict[str, str]:
     return ollama.assist_prompt(payload.model_dump())
+
+
+@app.post("/api/prompt/idea")
+def generate_prompt_idea(payload: PromptIdeaRequest) -> dict[str, str]:
+    return ollama.generate_prompt_idea(payload.model_dump())
 
 
 def run_generation_job(generation_id: str) -> None:
