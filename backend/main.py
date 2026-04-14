@@ -1,5 +1,6 @@
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from backend.db import (
     fetch_generation,
@@ -22,6 +23,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/files", StaticFiles(directory="storage"), name="files")
 
 
 @app.on_event("startup")
@@ -91,6 +94,7 @@ def run_generation_job(generation_id: str) -> None:
             "completed",
             comfyui_prompt_id=result.get("prompt_id"),
             output_audio_path=result.get("output_audio_path"),
+            workflow_path=result.get("workflow_path"),
         )
     except Exception as exc:  # pragma: no cover - background execution safety
         update_generation_status(generation_id, "failed", error_message=str(exc))

@@ -23,6 +23,8 @@ export type Generation = {
   cfg_scale?: number | null;
   status: GenerationStatus;
   output_audio_path?: string | null;
+  output_audio_url?: string | null;
+  output_audio_size?: number | null;
   workflow_path?: string | null;
   error_message?: string | null;
   comfyui_prompt_id?: string | null;

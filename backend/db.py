@@ -102,6 +102,23 @@ def row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
     return dict(row)
 
 
+def enrich_generation(record: dict[str, Any]) -> dict[str, Any]:
+    output_path = record.get("output_audio_path")
+    if not output_path:
+        record["output_audio_url"] = None
+        record["output_audio_size"] = None
+        return record
+
+    path = DATA_DIR.parent / str(output_path)
+    if path.exists() and path.stat().st_size > 0:
+        record["output_audio_url"] = f"http://127.0.0.1:8001/files/audio/{path.name}"
+        record["output_audio_size"] = path.stat().st_size
+    else:
+        record["output_audio_url"] = None
+        record["output_audio_size"] = path.stat().st_size if path.exists() else None
+    return record
+
+
 def fetch_model_presets() -> list[dict[str, Any]]:
     with get_connection() as conn:
         rows = conn.execute("SELECT * FROM model_presets ORDER BY name ASC").fetchall()
@@ -111,13 +128,14 @@ def fetch_model_presets() -> list[dict[str, Any]]:
 def fetch_generations() -> list[dict[str, Any]]:
     with get_connection() as conn:
         rows = conn.execute("SELECT * FROM generations ORDER BY created_at DESC").fetchall()
-    return [dict(row) for row in rows]
+    return [enrich_generation(dict(row)) for row in rows]
 
 
 def fetch_generation(generation_id: str) -> dict[str, Any] | None:
     with get_connection() as conn:
         row = conn.execute("SELECT * FROM generations WHERE id = ?", (generation_id,)).fetchone()
-    return row_to_dict(row)
+    record = row_to_dict(row)
+    return enrich_generation(record) if record is not None else None
 
 
 def insert_generation(payload: dict[str, Any]) -> dict[str, Any]:
