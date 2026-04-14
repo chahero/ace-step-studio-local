@@ -339,6 +339,26 @@ export default function App() {
         </div>
 
         <div className="panel">
+          <div className="panel-label">Model</div>
+            <div className="preset-row preset-row-compact">
+              {(Object.keys(presetLibrary) as Array<keyof typeof presetLibrary>).map((presetId) => {
+                const preset = presetLibrary[presetId];
+                const isActive = form.model_preset_id === presetId;
+                return (
+                  <button
+                    key={presetId}
+                    type="button"
+                    className={`preset-card ${isActive ? 'is-active' : ''}`}
+                    onClick={() => applyPreset(presetId)}
+                    title={preset.description}
+                    aria-label={`${preset.name}. ${preset.description}`}
+                  >
+                    <strong>{preset.name}</strong>
+                  </button>
+                );
+              })}
+            </div>
+
           <div className="panel-tabs">
             {(['simple', 'advanced', 'sounds'] as PanelTab[]).map((tab) => (
               <button
@@ -354,27 +374,6 @@ export default function App() {
 
           {activeTab === 'simple' ? (
             <div className="panel-stack">
-              <div className="preset-row">
-                {(Object.keys(presetLibrary) as Array<keyof typeof presetLibrary>).map((presetId) => {
-                  const preset = presetLibrary[presetId];
-                  const isActive = form.model_preset_id === presetId;
-                  return (
-                    <button
-                      key={presetId}
-                      type="button"
-                      className={`preset-card ${isActive ? 'is-active' : ''}`}
-                      onClick={() => applyPreset(presetId)}
-                    >
-                      <div className="preset-card-top">
-                        <strong>{preset.name}</strong>
-                        <span>{presetId}</span>
-                      </div>
-                      <p>{preset.description}</p>
-                    </button>
-                  );
-                })}
-              </div>
-
               <label className="block-field">
                 <span>Lyrics</span>
                 <textarea
@@ -417,21 +416,6 @@ export default function App() {
               </label>
 
               <div className="field-grid">
-                <label>
-                  <span>Model</span>
-                  <select
-                    className="input"
-                    value={form.model_preset_id}
-                    onChange={(event) => setForm((current) => ({ ...current, model_preset_id: event.target.value }))}
-                  >
-                    {models.map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {model.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
                 <label>
                   <span>BPM</span>
                   <input
