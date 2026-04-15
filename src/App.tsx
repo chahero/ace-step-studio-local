@@ -848,6 +848,10 @@ export default function App() {
     return <div className={className} aria-hidden="true" />;
   }
 
+  function getDownloadUrl(generationId: string) {
+    return `${API_ROOT}/api/generations/${generationId}/download`;
+  }
+
   function openLightbox(imageUrl: string, title: string) {
     setLightboxImageUrl(imageUrl);
     setLightboxTitle(title);
@@ -1583,7 +1587,7 @@ export default function App() {
                           {generation.output_audio_url ? (
                             <a
                               className="history-menu-item history-menu-link"
-                              href={generation.output_audio_url}
+                              href={getDownloadUrl(generation.id)}
                               download
                               onClick={() => setOpenHistoryMenuId(null)}
                             >

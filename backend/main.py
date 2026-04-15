@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.db import (
@@ -89,6 +90,26 @@ def get_generation(generation_id: str) -> dict[str, object]:
     if generation is None:
         raise HTTPException(status_code=404, detail="Generation not found")
     return generation
+
+
+@app.get("/api/generations/{generation_id}/download")
+def download_generation_audio(generation_id: str) -> FileResponse:
+    generation = fetch_generation(generation_id)
+    if generation is None:
+        raise HTTPException(status_code=404, detail="Generation not found")
+
+    output_audio_path = generation.get("output_audio_path")
+    if not output_audio_path:
+        raise HTTPException(status_code=404, detail="Audio file not found")
+
+    audio_path = (storage.DATA_DIR.parent / str(output_audio_path)).resolve()
+    if not audio_path.exists() or not audio_path.is_file():
+        raise HTTPException(status_code=404, detail="Audio file not found")
+
+    title = generation.get("title") or generation.get("id") or "audio"
+    safe_title = "".join(char if char.isalnum() or char in (" ", "-", "_") else "_" for char in str(title)).strip() or "audio"
+    filename = f"{safe_title}.mp3"
+    return FileResponse(audio_path, media_type="audio/mpeg", filename=filename)
 
 
 @app.post("/api/generations")
