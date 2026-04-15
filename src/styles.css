@@ -176,10 +176,29 @@ label > span {
 }
 
 .sidebar-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+}
+
+.sidebar-actions > .secondary-button:first-child {
+  flex: 1;
+}
+
+.idea-button {
+  display: inline-grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  min-width: 50px;
+  padding: 0;
+  border-radius: 16px;
+}
+
+.idea-icon {
+  width: 22px;
+  height: 22px;
 }
 
 .preset-row {

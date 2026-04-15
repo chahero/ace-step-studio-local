@@ -13,7 +13,12 @@ async function requestJSON<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `Request failed: ${response.status}`);
+    try {
+      const parsed = JSON.parse(text) as { detail?: string };
+      throw new Error(parsed.detail || `Request failed: ${response.status}`);
+    } catch {
+      throw new Error(text || `Request failed: ${response.status}`);
+    }
   }
 
   return (await response.json()) as T;

@@ -34,8 +34,8 @@ def on_startup() -> None:
 
 
 @app.get("/api/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> dict[str, object]:
+    return {"status": "ok", "ollama": ollama.check_connection()}
 
 
 @app.get("/api/models")
@@ -74,12 +74,18 @@ def retry_generation(generation_id: str, background_tasks: BackgroundTasks) -> d
 
 @app.post("/api/prompt/assist")
 def assist_prompt(payload: PromptAssistRequest) -> dict[str, str]:
-    return ollama.assist_prompt(payload.model_dump())
+    try:
+        return ollama.assist_prompt(payload.model_dump())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.post("/api/prompt/idea")
 def generate_prompt_idea(payload: PromptIdeaRequest) -> dict[str, str]:
-    return ollama.generate_prompt_idea(payload.model_dump())
+    try:
+        return ollama.generate_prompt_idea(payload.model_dump())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 def run_generation_job(generation_id: str) -> None:

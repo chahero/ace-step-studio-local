@@ -475,8 +475,22 @@ export default function App() {
             <button className="secondary-button" type="button" onClick={onAssist} disabled={assistLoading}>
               {assistLoading ? 'Refining...' : 'Refine Prompt'}
             </button>
-            <button className="secondary-button" type="button" onClick={onGenerateIdea} disabled={ideaLoading}>
-              {ideaLoading ? 'Inspiring...' : 'Generate Idea'}
+            <button
+              className="secondary-button idea-button"
+              type="button"
+              onClick={onGenerateIdea}
+              disabled={ideaLoading}
+              aria-label={ideaLoading ? 'Generating idea' : 'Generate idea'}
+              title={ideaLoading ? 'Generating idea' : 'Generate idea'}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" className="idea-icon">
+                <rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" strokeWidth="1.7" />
+                <circle cx="8" cy="8" r="1.3" fill="currentColor" />
+                <circle cx="16" cy="8" r="1.3" fill="currentColor" />
+                <circle cx="8" cy="16" r="1.3" fill="currentColor" />
+                <circle cx="16" cy="16" r="1.3" fill="currentColor" />
+                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+              </svg>
             </button>
           </div>
 
