@@ -147,6 +147,14 @@ function formatAudioTime(seconds: number) {
   return `${minutes}:${String(remainder).padStart(2, '0')}`;
 }
 
+function DiceIcon() {
+  return (
+    <span className="dice-icon" aria-hidden="true">
+      ✦
+    </span>
+  );
+}
+
 export default function App() {
   const [models, setModels] = useState<ModelPreset[]>([]);
   const [generations, setGenerations] = useState<Generation[]>([]);
@@ -583,13 +591,14 @@ export default function App() {
               <div className="field-header">
                 <span>Caption / Tags</span>
                 <button
-                  className={`secondary-button field-action ${captionLoading ? 'is-loading' : ''}`}
+                  className={`secondary-button field-action dice-action ${captionLoading ? 'is-loading' : ''}`}
                   type="button"
                   onClick={onGenerateCaption}
                   disabled={captionLoading}
+                  title="Generate Caption"
+                  aria-label="Generate Caption"
                 >
-                  {captionLoading ? <span className="button-spinner" aria-hidden="true" /> : null}
-                  {captionLoading ? 'Generating...' : 'Generate Caption'}
+                  {captionLoading ? <span className="button-spinner" aria-hidden="true" /> : <DiceIcon />}
                 </button>
               </div>
               <textarea
@@ -622,17 +631,15 @@ export default function App() {
               <div className="field-header">
                 <span>Metadata</span>
                 <button
-                  className={`secondary-button field-action ${metadataLoading ? 'is-loading' : ''}`}
+                  className={`secondary-button field-action dice-action ${metadataLoading ? 'is-loading' : ''}`}
                   type="button"
                   onClick={onGenerateMetadata}
                   disabled={metadataLoading}
+                  title="Suggest Metadata"
+                  aria-label="Suggest Metadata"
                 >
-                  {metadataLoading ? <span className="button-spinner" aria-hidden="true" /> : null}
-                  {metadataLoading ? 'Suggesting...' : 'Suggest Metadata'}
+                  {metadataLoading ? <span className="button-spinner" aria-hidden="true" /> : <DiceIcon />}
                 </button>
-              </div>
-              <div className="advanced-summary">
-                BPM, duration, key, language, seed, meter, temperature, and CFG scale.
               </div>
               <div className="field-grid">
                 <label>
@@ -752,13 +759,14 @@ export default function App() {
               <div className="field-header">
                 <span>Lyrics</span>
                 <button
-                  className={`secondary-button field-action ${lyricsLoading ? 'is-loading' : ''}`}
+                  className={`secondary-button field-action dice-action ${lyricsLoading ? 'is-loading' : ''}`}
                   type="button"
                   onClick={onGenerateLyrics}
                   disabled={lyricsLoading}
+                  title="Suggest Lyrics"
+                  aria-label="Suggest Lyrics"
                 >
-                  {lyricsLoading ? <span className="button-spinner" aria-hidden="true" /> : null}
-                  {lyricsLoading ? 'Generating...' : 'Suggest Lyrics'}
+                  {lyricsLoading ? <span className="button-spinner" aria-hidden="true" /> : <DiceIcon />}
                 </button>
               </div>
               <textarea
