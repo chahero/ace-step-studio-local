@@ -433,7 +433,6 @@ export default function App() {
     try {
       const response = await generatePromptIdea({
         prompt: form.prompt,
-        lyrics: form.lyrics,
         language: form.language,
         model_preset_id: form.model_preset_id,
         genre_category: form.genre_category || null,
