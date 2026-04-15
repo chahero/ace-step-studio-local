@@ -332,6 +332,7 @@ export default function App() {
   const [isTimeSignatureMenuOpen, setIsTimeSignatureMenuOpen] = useState(false);
   const [playerCurrentTime, setPlayerCurrentTime] = useState(0);
   const [playerDuration, setPlayerDuration] = useState(0);
+  const [shouldAutoplayOnLoad, setShouldAutoplayOnLoad] = useState(false);
   const [lightboxImageUrl, setLightboxImageUrl] = useState<string | null>(null);
   const [lightboxTitle, setLightboxTitle] = useState('');
   const dragState = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -799,6 +800,10 @@ export default function App() {
 
     const onLoadedMetadata = () => {
       setPlayerDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
+      if (shouldAutoplayOnLoad) {
+        void audio.play().catch(() => undefined);
+        setShouldAutoplayOnLoad(false);
+      }
     };
 
     audio.pause();
@@ -816,7 +821,7 @@ export default function App() {
       audio.removeEventListener('loadedmetadata', onLoadedMetadata);
       audio.removeEventListener('durationchange', syncPlaybackState);
     };
-  }, [currentAudioUrl]);
+  }, [currentAudioUrl, shouldAutoplayOnLoad]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -882,6 +887,23 @@ export default function App() {
   function changeVolume(value: number) {
     const nextValue = Math.min(1, Math.max(0, value));
     setPlayerVolume(nextValue);
+  }
+
+  function playGeneration(generationId: string) {
+    if (activeGeneration?.id === generationId && currentAudioUrl) {
+      const audio = audioRef.current;
+      if (audio) {
+        if (audio.paused) {
+          void audio.play().catch(() => undefined);
+        } else {
+          audio.pause();
+        }
+      }
+      return;
+    }
+
+    setShouldAutoplayOnLoad(true);
+    setActiveGenerationId(generationId);
   }
 
   function onResizeStart(event: ReactPointerEvent<HTMLDivElement>) {
@@ -1382,9 +1404,26 @@ export default function App() {
                   }}
                 >
                   <div className="history-left">
-                    {renderArtwork(generation, 'library-thumb')}
+                    <div className="library-thumb-wrap">
+                      {renderArtwork(generation, 'library-thumb')}
+                      <div className="library-thumb-duration">{formatAudioTime(generation.duration ?? 0)}</div>
+                      {generation.output_audio_url ? (
+                        <button
+                          className="library-thumb-play"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            playGeneration(generation.id);
+                          }}
+                          aria-label={activeGeneration?.id === generation.id && isPlaying ? 'Pause track' : 'Play track'}
+                          title={activeGeneration?.id === generation.id && isPlaying ? 'Pause' : 'Play'}
+                        >
+                          {activeGeneration?.id === generation.id && isPlaying ? <PauseIcon /> : <PlayIcon />}
+                        </button>
+                      ) : null}
+                    </div>
                     <div className="history-copy">
-                <strong>{generation.title ?? generation.prompt}</strong>
+                      <strong>{generation.title ?? generation.prompt}</strong>
                 <span className="history-description">
                         {generation.tags || generation.model_preset_id}
                       </span>
