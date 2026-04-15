@@ -27,6 +27,10 @@ Copy `.env.example` to `.env`.
 Example:
 
 ```env
+BACKEND_HOST=127.0.0.1
+BACKEND_PORT=8001
+VITE_API_HOST=127.0.0.1
+VITE_API_PORT=8001
 COMFYUI_BASE_URL=http://192.168.0.67:8188
 OLLAMA_BASE_URL=http://192.168.0.67:11434
 OLLAMA_MODEL=gemma4:e4b
@@ -58,6 +62,10 @@ npm install
 .\start_backend.bat
 ```
 
+```bash
+./start_backend.sh
+```
+
 ### Frontend
 
 ```powershell
@@ -71,6 +79,12 @@ Frontend:
 Backend:
 
 - `http://127.0.0.1:8001`
+
+Notes:
+
+- `start_backend.bat` reads `BACKEND_HOST` and `BACKEND_PORT` from `.env`, activates `.venv`, and runs the backend in the foreground.
+- `start_backend.sh` reads `BACKEND_HOST` and `BACKEND_PORT` from `.env`, activates `.venv`, and runs the backend in the background.
+- Frontend API calls read `VITE_API_HOST` and `VITE_API_PORT` from `.env`.
 
 ## Storage
 

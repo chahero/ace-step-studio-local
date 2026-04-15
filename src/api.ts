@@ -8,7 +8,9 @@ import type {
   PromptTitleResponse,
 } from './types';
 
-const API_BASE_URL = 'http://127.0.0.1:8001/api';
+const API_HOST = import.meta.env.VITE_API_HOST || '127.0.0.1';
+const API_PORT = import.meta.env.VITE_API_PORT || '8001';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `http://${API_HOST}:${API_PORT}/api`;
 
 async function requestJSON<T>(path: string, init?: RequestInit): Promise<T> {
   const hasBody = init?.body !== undefined && init?.body !== null;
