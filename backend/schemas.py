@@ -21,6 +21,7 @@ class PromptAssistRequest(BaseModel):
     prompt: str
     lyrics: str | None = None
     language: str | None = None
+    genre_category: str | None = None
 
 
 class PromptIdeaRequest(BaseModel):
@@ -28,6 +29,7 @@ class PromptIdeaRequest(BaseModel):
     lyrics: str | None = None
     language: str | None = None
     model_preset_id: str | None = None
+    genre_category: str | None = None
 
 
 class PromptLyricsRequest(BaseModel):
@@ -37,15 +39,18 @@ class PromptLyricsRequest(BaseModel):
     duration: int | None = None
     timesignature: str | None = None
     keyscale: str | None = None
+    genre_category: str | None = None
 
 
 class PromptMetadataRequest(BaseModel):
     prompt: str
     lyrics: str | None = None
     language: str | None = None
+    genre_category: str | None = None
 
 
 class PromptTitleRequest(BaseModel):
     prompt: str
     lyrics: str | None = None
     metadata: dict[str, object] | None = None
+    genre_category: str | None = None

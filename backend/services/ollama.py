@@ -8,6 +8,42 @@ import re
 import httpx
 
 
+GENRE_GUIDANCE: dict[str, dict[str, str]] = {
+    "Pop": {
+        "focus": "strong hooks, memorable topline, polished production, broad appeal, concise modern song structure",
+        "avoid": "jazz-hop, harsh industrial textures, long ambient drift, extreme experimental structure",
+    },
+    "K-pop": {
+        "focus": "high-impact hooks, polished idol-pop production, sleek arrangement changes, catchy chorus, bright or stylish contemporary energy",
+        "avoid": "loose indie demo feel, raw garage rock texture, dusty lo-fi beat tape language, lounge jazz drift",
+    },
+    "J-pop": {
+        "focus": "melodic uplift, bright emotional progression, clean pop-rock or synth-pop polish, strong chorus payoff, expressive anime-like energy when appropriate",
+        "avoid": "heavy trap minimalism, murky lo-fi haze, slow lounge jazz phrasing, grim industrial tone",
+    },
+    "Hip-Hop / Trap": {
+        "focus": "808-driven rhythm, crisp drums, rap-friendly phrasing, modern bounce, dark or flex-heavy energy",
+        "avoid": "soft lounge jazz, orchestral ballad writing, folk acoustic textures, dreamy ambient wash",
+    },
+    "R&B / Soul": {
+        "focus": "smooth groove, soulful vocals, warm bass, lush chords, intimate late-night mood, emotional phrasing",
+        "avoid": "jazz-hop, lo-fi beat tape language, lounge instrumentals, EDM festival energy, hard rock textures",
+    },
+    "Electronic": {
+        "focus": "synthetic textures, club-ready rhythm, crisp sound design, dance energy, modern electronic arrangement",
+        "avoid": "campfire folk language, unplugged acoustic feel, vintage lounge jazz, orchestral hymn style",
+    },
+    "Rock": {
+        "focus": "guitars, live-band energy, punchy drums, strong chorus lift, direct physical momentum",
+        "avoid": "EDM drop language, lo-fi beat tape phrasing, delicate ambient drift, smooth neo-soul softness",
+    },
+    "Ambient / Cinematic": {
+        "focus": "atmosphere, spacious texture, slow evolution, emotional worldbuilding, cinematic scale or ambient stillness",
+        "avoid": "trap bounce, radio pop hook language, funk groove emphasis, aggressive rock riffing",
+    },
+}
+
+
 def _normalize_text(value: str) -> str:
     return value.replace("\\r\\n", "\n").replace("\\n", "\n").strip()
 
@@ -62,6 +98,21 @@ def _coerce_float(value: object, default: float) -> float:
         return float(str(value).strip())
     except (TypeError, ValueError):
         return default
+
+
+def _genre_instruction(genre_category: str) -> str:
+    genre = str(genre_category or "").strip()
+    if not genre:
+        return "No genre category selected. You may choose any genre naturally."
+    config = GENRE_GUIDANCE.get(genre)
+    if not config:
+        return f"Genre category selected: {genre}. Stay clearly within that genre family."
+    return (
+        f"Genre category selected: {genre}. "
+        f"Stay strictly within this genre family. "
+        f"Prioritize: {config['focus']}. "
+        f"Avoid: {config['avoid']}."
+    )
 
 
 def _normalize_timesignature(value: object, default: str = "4") -> str:
@@ -211,6 +262,8 @@ def assist_prompt(payload: dict[str, object]) -> dict[str, str]:
     prompt = str(payload.get("prompt", "")).strip()
     lyrics = str(payload.get("lyrics", "") or "").strip()
     language = str(payload.get("language", "en"))
+    genre_category = str(payload.get("genre_category", "") or "").strip()
+    genre_instruction = _genre_instruction(genre_category)
 
     request_body = {
         "model": model,
@@ -235,6 +288,8 @@ def assist_prompt(payload: dict[str, object]) -> dict[str, str]:
                     f"Prompt: {prompt}\n"
                     f"Lyrics: {lyrics}\n"
                     f"Language: {language}\n"
+                    f"Genre category: {genre_category or 'unspecified'}\n"
+                    f"Genre instruction: {genre_instruction}\n"
                     "Return concise tags and improved lyrics."
                 ),
             },
@@ -276,6 +331,8 @@ def generate_prompt_idea(payload: dict[str, object]) -> dict[str, str]:
     lyrics = str(payload.get("lyrics", "") or "").strip()
     language = str(payload.get("language", "en") or "en").strip()
     model_preset_id = str(payload.get("model_preset_id", "") or "").strip()
+    genre_category = str(payload.get("genre_category", "") or "").strip()
+    genre_instruction = _genre_instruction(genre_category)
 
     request_body = {
         "model": model,
@@ -303,8 +360,11 @@ def generate_prompt_idea(payload: dict[str, object]) -> dict[str, str]:
                     f"Current prompt: {prompt}\n"
                     f"Current lyrics: {lyrics}\n"
                     f"Language: {language}\n"
+                    f"Genre category: {genre_category or 'none'}\n"
+                    f"Genre instruction: {genre_instruction}\n"
                     f"Selected model preset: {model_preset_id or 'none'}\n"
-                    "Create a fresh idea that is different from the current input."
+                    "Create a fresh idea that is different from the current input. "
+                    "Keep the result clearly inside the selected genre family if one is provided."
                 ),
             },
         ],
@@ -369,6 +429,8 @@ def generate_lyrics_draft(payload: dict[str, object]) -> dict[str, str]:
     duration = payload.get("duration")
     timesignature = str(payload.get("timesignature", "") or "").strip()
     keyscale = str(payload.get("keyscale", "") or "").strip()
+    genre_category = str(payload.get("genre_category", "") or "").strip()
+    genre_instruction = _genre_instruction(genre_category)
 
     request_body = {
         "model": model,
@@ -392,6 +454,8 @@ def generate_lyrics_draft(payload: dict[str, object]) -> dict[str, str]:
                 "content": (
                     f"Caption / tags: {prompt}\n"
                     f"Language: {language}\n"
+                    f"Genre category: {genre_category or 'unspecified'}\n"
+                    f"Genre instruction: {genre_instruction}\n"
                     f"BPM: {bpm if bpm not in (None, '') else 'unspecified'}\n"
                     f"Duration: {duration if duration not in (None, '') else 'unspecified'}\n"
                     f"Time signature: {timesignature or 'unspecified'}\n"
@@ -432,6 +496,8 @@ def suggest_metadata(payload: dict[str, object]) -> dict[str, object]:
     prompt = str(payload.get("prompt", "") or "").strip()
     lyrics = str(payload.get("lyrics", "") or "").strip()
     language = str(payload.get("language", "en") or "en").strip()
+    genre_category = str(payload.get("genre_category", "") or "").strip()
+    genre_instruction = _genre_instruction(genre_category)
 
     request_body = {
         "model": model,
@@ -457,6 +523,8 @@ def suggest_metadata(payload: dict[str, object]) -> dict[str, object]:
                     f"Caption / tags: {prompt}\n"
                     f"Lyrics: {lyrics}\n"
                     f"Language: {language}\n"
+                    f"Genre category: {genre_category or 'unspecified'}\n"
+                    f"Genre instruction: {genre_instruction}\n"
                     "Suggest metadata that fits this idea."
                 ),
             },
@@ -498,6 +566,8 @@ def suggest_title(payload: dict[str, object]) -> dict[str, str]:
     prompt = str(payload.get("prompt", "") or "").strip()
     lyrics = str(payload.get("lyrics", "") or "").strip()
     metadata = payload.get("metadata")
+    genre_category = str(payload.get("genre_category", "") or "").strip()
+    genre_instruction = _genre_instruction(genre_category)
     metadata_text = json.dumps(metadata, ensure_ascii=False) if isinstance(metadata, dict) else ""
 
     request_body = {
@@ -522,6 +592,8 @@ def suggest_title(payload: dict[str, object]) -> dict[str, str]:
                 "content": (
                     f"Caption / tags: {prompt}\n"
                     f"Lyrics: {lyrics}\n"
+                    f"Genre category: {genre_category or 'unspecified'}\n"
+                    f"Genre instruction: {genre_instruction}\n"
                     f"Metadata: {metadata_text}\n"
                     "Suggest a concise title."
                 ),

@@ -19,6 +19,7 @@ const defaultForm = {
   prompt: 'A warm, intimate ambient track with soft vocals and slow evolution.',
   lyrics: '',
   tags: '',
+  genre_category: '',
   model_preset_id: '',
   bpm: 72,
   duration: 120,
@@ -111,6 +112,17 @@ const soundPalette = [
   'gritty',
   'drift',
 ];
+
+const genreCategories = [
+  'Pop',
+  'K-pop',
+  'J-pop',
+  'Hip-Hop / Trap',
+  'R&B / Soul',
+  'Electronic',
+  'Rock',
+  'Ambient / Cinematic',
+] as const;
 
 const languageOptions = [
   { value: 'en', label: 'EN', fullLabel: 'English' },
@@ -397,12 +409,14 @@ export default function App() {
         throw new Error('Title is required');
       }
 
+      const { genre_category: _genreCategory, ...generationForm } = form;
+
       await createGeneration({
-        ...form,
+        ...generationForm,
         title,
-        seed: form.seed || null,
-        lyrics: form.lyrics || null,
-        tags: form.prompt || null,
+        seed: generationForm.seed || null,
+        lyrics: generationForm.lyrics || null,
+        tags: generationForm.prompt || null,
       });
       await refreshGenerations();
     } catch (cause) {
@@ -422,12 +436,12 @@ export default function App() {
         lyrics: form.lyrics,
         language: form.language,
         model_preset_id: form.model_preset_id,
+        genre_category: form.genre_category || null,
       });
 
       setForm((current) => ({
         ...current,
         prompt: [response.prompt, response.tags].filter(Boolean).join(', ') || current.prompt,
-        title: current.title.trim() || response.prompt || current.prompt,
       }));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Caption generation failed');
@@ -444,6 +458,7 @@ export default function App() {
       const response = await generatePromptTitle({
         prompt: form.prompt,
         lyrics: form.lyrics,
+        genre_category: form.genre_category || null,
         metadata: {
           bpm: form.bpm,
           duration: form.duration,
@@ -475,6 +490,7 @@ export default function App() {
       const response = await generatePromptLyrics({
         prompt: form.prompt,
         language: form.language,
+        genre_category: form.genre_category || null,
         bpm: form.bpm || null,
         duration: form.duration || null,
         timesignature: form.timesignature,
@@ -501,6 +517,7 @@ export default function App() {
         prompt: form.prompt,
         lyrics: form.lyrics,
         language: form.language,
+        genre_category: form.genre_category || null,
       });
 
       setForm((current) => ({
@@ -535,6 +552,7 @@ export default function App() {
         lyrics: '',
         language: preset.language,
         model_preset_id: randomPresetId,
+        genre_category: form.genre_category || null,
       });
 
       const nextPrompt = [captionResponse.prompt, captionResponse.tags].filter(Boolean).join(', ').trim() || preset.prompt;
@@ -543,6 +561,7 @@ export default function App() {
         prompt: nextPrompt,
         lyrics: '',
         language: preset.language,
+        genre_category: form.genre_category || null,
       });
 
       const nextMetadata = {
@@ -559,6 +578,7 @@ export default function App() {
       const lyricsResponse = await generatePromptLyrics({
         prompt: nextPrompt,
         language: nextMetadata.language,
+        genre_category: form.genre_category || null,
         bpm: nextMetadata.bpm,
         duration: nextMetadata.duration,
         timesignature: nextMetadata.timesignature,
@@ -570,6 +590,7 @@ export default function App() {
       const titleResponse = await generatePromptTitle({
         prompt: nextPrompt,
         lyrics: nextLyrics,
+        genre_category: form.genre_category || null,
         metadata: nextMetadata,
       });
 
@@ -818,6 +839,24 @@ export default function App() {
             </div>
 
           <div className="panel-stack">
+            <div className="block-field">
+              <div className="field-header">
+                <span>Main Genre</span>
+              </div>
+              <div className="genre-chip-row">
+                {genreCategories.map((genre) => (
+                  <button
+                    key={genre}
+                    type="button"
+                    className={`genre-chip ${form.genre_category === genre ? 'is-active' : ''}`}
+                    onClick={() => setForm((current) => ({ ...current, genre_category: current.genre_category === genre ? '' : genre }))}
+                  >
+                    {genre}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="block-field">
               <div className="field-header">
                 <span>Caption / Tags</span>
