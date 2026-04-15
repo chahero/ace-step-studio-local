@@ -31,12 +31,35 @@ BACKEND_HOST=127.0.0.1
 BACKEND_PORT=8001
 VITE_API_HOST=127.0.0.1
 VITE_API_PORT=8001
-COMFYUI_BASE_URL=http://192.168.0.67:8188
-OLLAMA_BASE_URL=http://192.168.0.67:11434
+COMFYUI_BASE_URL=http://127.0.0.1:8188
+OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=gemma4:e4b
 COMFYUI_POLL_TIMEOUT=900
 COMFYUI_POLL_INTERVAL=2.0
 ```
+
+## ComfyUI Setup
+
+This project submits workflow JSON directly to ComfyUI through the API.
+
+That means:
+
+- you do **not** need to manually import the workflow in the ComfyUI UI every time
+- but your ComfyUI instance **must** have the same required models and custom nodes that the workflow expects
+
+The workflow files used by this app are stored in:
+
+```txt
+workflow/
+```
+
+Before running the app, verify that your ComfyUI environment can execute the workflows referenced there, including:
+
+- ACE-Step audio workflows
+- the `image_flux2_klein_text_to_image.json` cover workflow
+- matching model files, VAE files, CLIP files, and any required custom nodes
+
+If ComfyUI is missing a required node or model, generation will fail even if the backend and frontend are running correctly.
 
 ## Install
 
