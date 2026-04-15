@@ -64,6 +64,24 @@ def _coerce_float(value: object, default: float) -> float:
         return default
 
 
+def _normalize_timesignature(value: object, default: str = "4") -> str:
+    text = str(value or "").strip()
+    match = re.search(r"\b([2346])\b", text)
+    if match:
+        return match.group(1)
+    return default
+
+
+def _normalize_keyscale(value: object, default: str = "E minor") -> str:
+    text = str(value or "").strip()
+    match = re.match(r"^([A-G](?:#|b)?)(?:\s+)?(major|minor)$", text, flags=re.IGNORECASE)
+    if match:
+        root = match.group(1).upper()
+        mode = match.group(2).lower()
+        return f"{root} {mode}"
+    return default
+
+
 def _random_idea_fallback(prompt: str, lyrics: str) -> dict[str, str]:
     ideas = [
         {
@@ -464,9 +482,9 @@ def suggest_metadata(payload: dict[str, object]) -> dict[str, object]:
     return {
         "bpm": _coerce_int(parsed.get("bpm"), 72),
         "duration": _coerce_int(parsed.get("duration"), 120),
-        "timesignature": str(parsed.get("timesignature") or "4"),
+        "timesignature": _normalize_timesignature(parsed.get("timesignature"), "4"),
         "language": str(parsed.get("language") or language or "en"),
-        "keyscale": str(parsed.get("keyscale") or "E minor"),
+        "keyscale": _normalize_keyscale(parsed.get("keyscale"), "E minor"),
         "seed": _coerce_int(parsed.get("seed"), 0),
         "temperature": _coerce_float(parsed.get("temperature"), 0.85),
         "cfg_scale": _coerce_float(parsed.get("cfg_scale"), 2.0),

@@ -177,11 +177,13 @@ export default function App() {
   const [isLibrarySortMenuOpen, setIsLibrarySortMenuOpen] = useState(false);
   const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
+  const [isTimeSignatureMenuOpen, setIsTimeSignatureMenuOpen] = useState(false);
   const [playerCurrentTime, setPlayerCurrentTime] = useState(0);
   const [playerDuration, setPlayerDuration] = useState(0);
   const dragState = useRef<{ startX: number; startWidth: number } | null>(null);
   const languageMenuRef = useRef<HTMLDivElement | null>(null);
   const librarySortMenuRef = useRef<HTMLDivElement | null>(null);
+  const timeSignatureMenuRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -232,6 +234,9 @@ export default function App() {
       }
       if (librarySortMenuRef.current && target && !librarySortMenuRef.current.contains(target)) {
         setIsLibrarySortMenuOpen(false);
+      }
+      if (timeSignatureMenuRef.current && target && !timeSignatureMenuRef.current.contains(target)) {
+        setIsTimeSignatureMenuOpen(false);
       }
     };
 
@@ -794,14 +799,46 @@ export default function App() {
                     />
                   </label>
 
-                  <label>
-                    <span>Time Signature</span>
-                    <input
-                      className="input"
-                      value={form.timesignature}
-                      onChange={(event) => setForm((current) => ({ ...current, timesignature: event.target.value }))}
-                    />
-                  </label>
+                <label>
+                  <span>Time Signature</span>
+                  <div className="language-select" ref={timeSignatureMenuRef}>
+                    <button
+                      type="button"
+                      className="input language-select-trigger"
+                      onClick={() => setIsTimeSignatureMenuOpen((current) => !current)}
+                      aria-haspopup="listbox"
+                      aria-expanded={isTimeSignatureMenuOpen}
+                    >
+                      <span>{form.timesignature}</span>
+                      <span className="language-select-caret" aria-hidden="true">
+                        ▾
+                      </span>
+                    </button>
+                    {isTimeSignatureMenuOpen ? (
+                      <div className="language-select-menu" role="listbox" aria-label="Time Signature">
+                        {['2', '3', '4', '6'].map((option) => {
+                          const isSelected = form.timesignature === option;
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              className={`language-select-option ${isSelected ? 'is-selected' : ''}`}
+                              onClick={() => {
+                                setForm((current) => ({ ...current, timesignature: option }));
+                                setIsTimeSignatureMenuOpen(false);
+                              }}
+                              role="option"
+                              aria-selected={isSelected}
+                            >
+                              <span className="language-select-code">{option}</span>
+                              <span className="language-select-name">meter</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                </label>
 
                   <label>
                     <span>Temperature</span>

@@ -11,9 +11,10 @@ import type {
 const API_BASE_URL = 'http://127.0.0.1:8001/api';
 
 async function requestJSON<T>(path: string, init?: RequestInit): Promise<T> {
+  const hasBody = init?.body !== undefined && init?.body !== null;
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
-      'Content-Type': 'application/json',
+      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
       ...(init?.headers ?? {}),
     },
     ...init,

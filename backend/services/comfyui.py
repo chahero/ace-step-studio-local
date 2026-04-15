@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import time
+import re
 from typing import Any
 
 import httpx
@@ -28,6 +29,24 @@ WORKFLOW_NODE_MAP = {
 }
 
 
+def _normalize_timesignature(value: Any, default: str = "4") -> str:
+    text = str(value or "").strip()
+    match = re.search(r"\b([2346])\b", text)
+    if match:
+        return match.group(1)
+    return default
+
+
+def _normalize_keyscale(value: Any, default: str = "E minor") -> str:
+    text = str(value or "").strip()
+    match = re.match(r"^([A-G](?:#|b)?)(?:\s+)?(major|minor)$", text, flags=re.IGNORECASE)
+    if match:
+        root = match.group(1).upper()
+        mode = match.group(2).lower()
+        return f"{root} {mode}"
+    return default
+
+
 def load_workflow(workflow_file: str) -> dict[str, Any]:
     with open(workflow_file, "r", encoding="utf-8") as handle:
         return json.load(handle)
@@ -41,9 +60,9 @@ def patch_workflow(workflow: dict[str, Any], generation: dict[str, Any], workflo
         "seed": int(generation.get("seed") or 0),
         "bpm": int(generation.get("bpm") or 72),
         "duration": int(generation.get("duration") or 120),
-        "timesignature": str(generation.get("timesignature") or "4"),
+        "timesignature": _normalize_timesignature(generation.get("timesignature"), "4"),
         "language": str(generation.get("language") or "en"),
-        "keyscale": str(generation.get("keyscale") or "E minor"),
+        "keyscale": _normalize_keyscale(generation.get("keyscale"), "E minor"),
         "generate_audio_codes": True,
         "cfg_scale": float(generation.get("cfg_scale") or 2),
         "temperature": float(generation.get("temperature") or 0.85),
@@ -77,7 +96,8 @@ def submit_workflow(workflow: dict[str, Any]) -> str:
         json={"prompt": workflow, "client_id": client_id},
         timeout=60.0,
     )
-    response.raise_for_status()
+    if response.status_code >= 400:
+        raise RuntimeError(f"ComfyUI /prompt failed ({response.status_code}): {response.text}")
     data = response.json()
     return str(data.get("prompt_id") or data.get("id") or "")
 
