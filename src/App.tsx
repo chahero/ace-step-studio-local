@@ -678,28 +678,6 @@ export default function App() {
           <div className="panel-stack">
             <div className="block-field">
               <div className="field-header">
-                <span>Title *</span>
-                <button
-                  className={`secondary-button field-action dice-action ${titleLoading ? 'is-loading' : ''}`}
-                  type="button"
-                  onClick={onGenerateTitle}
-                  disabled={titleLoading}
-                  title="Suggest Title"
-                  aria-label="Suggest Title"
-                >
-                  {titleLoading ? <span className="button-spinner" aria-hidden="true" /> : <DiceIcon />}
-                </button>
-              </div>
-              <input
-                className="input"
-                value={form.title}
-                onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                placeholder="Song title"
-              />
-            </div>
-
-            <div className="block-field">
-              <div className="field-header">
                 <span>Caption / Tags</span>
                 <button
                   className={`secondary-button field-action dice-action ${captionLoading ? 'is-loading' : ''}`}
@@ -958,6 +936,28 @@ export default function App() {
                 onChange={(event) => setForm((current) => ({ ...current, lyrics: event.target.value }))}
                 rows={8}
                 placeholder="Write sections like [Verse], [Chorus], or leave blank for instrumental. Uses caption/tags plus metadata."
+              />
+            </div>
+
+            <div className="block-field">
+              <div className="field-header">
+                <span>Title *</span>
+                <button
+                  className={`secondary-button field-action dice-action ${titleLoading ? 'is-loading' : ''}`}
+                  type="button"
+                  onClick={onGenerateTitle}
+                  disabled={titleLoading}
+                  title="Suggest Title"
+                  aria-label="Suggest Title"
+                >
+                  {titleLoading ? <span className="button-spinner" aria-hidden="true" /> : <DiceIcon />}
+                </button>
+              </div>
+              <input
+                className="input"
+                value={form.title}
+                onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+                placeholder="Song title"
               />
             </div>
           </div>
