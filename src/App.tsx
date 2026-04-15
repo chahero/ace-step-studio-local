@@ -122,6 +122,43 @@ const languageOptions = [
   { value: 'de', label: 'DE', fullLabel: 'German' },
 ];
 
+const keyOptions = [
+  'C major',
+  'C# major',
+  'Db major',
+  'D major',
+  'D# major',
+  'Eb major',
+  'E major',
+  'F major',
+  'F# major',
+  'Gb major',
+  'G major',
+  'G# major',
+  'Ab major',
+  'A major',
+  'A# major',
+  'Bb major',
+  'B major',
+  'C minor',
+  'C# minor',
+  'Db minor',
+  'D minor',
+  'D# minor',
+  'Eb minor',
+  'E minor',
+  'F minor',
+  'F# minor',
+  'Gb minor',
+  'G minor',
+  'G# minor',
+  'Ab minor',
+  'A minor',
+  'A# minor',
+  'Bb minor',
+  'B minor',
+] as const;
+
 function splitTags(value: string) {
   return value
     .split(',')
@@ -177,11 +214,13 @@ export default function App() {
   const [isLibrarySortMenuOpen, setIsLibrarySortMenuOpen] = useState(false);
   const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
+  const [isKeyMenuOpen, setIsKeyMenuOpen] = useState(false);
   const [isTimeSignatureMenuOpen, setIsTimeSignatureMenuOpen] = useState(false);
   const [playerCurrentTime, setPlayerCurrentTime] = useState(0);
   const [playerDuration, setPlayerDuration] = useState(0);
   const dragState = useRef<{ startX: number; startWidth: number } | null>(null);
   const languageMenuRef = useRef<HTMLDivElement | null>(null);
+  const keyMenuRef = useRef<HTMLDivElement | null>(null);
   const librarySortMenuRef = useRef<HTMLDivElement | null>(null);
   const timeSignatureMenuRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -231,6 +270,9 @@ export default function App() {
       const target = event.target as Node | null;
       if (languageMenuRef.current && target && !languageMenuRef.current.contains(target)) {
         setIsLanguageMenuOpen(false);
+      }
+      if (keyMenuRef.current && target && !keyMenuRef.current.contains(target)) {
+        setIsKeyMenuOpen(false);
       }
       if (librarySortMenuRef.current && target && !librarySortMenuRef.current.contains(target)) {
         setIsLibrarySortMenuOpen(false);
@@ -741,11 +783,42 @@ export default function App() {
 
                   <label>
                     <span>Key</span>
-                    <input
-                      className="input"
-                      value={form.keyscale}
-                      onChange={(event) => setForm((current) => ({ ...current, keyscale: event.target.value }))}
-                    />
+                    <div className="key-select" ref={keyMenuRef}>
+                      <button
+                        type="button"
+                        className="input key-select-trigger"
+                        onClick={() => setIsKeyMenuOpen((current) => !current)}
+                        aria-haspopup="listbox"
+                        aria-expanded={isKeyMenuOpen}
+                      >
+                        <span>{keyOptions.includes(form.keyscale as (typeof keyOptions)[number]) ? form.keyscale : 'E minor'}</span>
+                        <span className="key-select-caret" aria-hidden="true">
+                          ▾
+                        </span>
+                      </button>
+                      {isKeyMenuOpen ? (
+                        <div className="key-select-menu" role="listbox" aria-label="Key">
+                          {keyOptions.map((option) => {
+                            const isSelected = option === form.keyscale;
+                            return (
+                              <button
+                                key={option}
+                                type="button"
+                                className={`key-select-option ${isSelected ? 'is-selected' : ''}`}
+                                onClick={() => {
+                                  setForm((current) => ({ ...current, keyscale: option }));
+                                  setIsKeyMenuOpen(false);
+                                }}
+                                role="option"
+                                aria-selected={isSelected}
+                              >
+                                {option}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
                   </label>
 
                   <label>
