@@ -9,6 +9,7 @@ export type GenerationStatus = 'queued' | 'running' | 'completed' | 'failed';
 
 export type Generation = {
   id: string;
+  title?: string | null;
   prompt: string;
   lyrics?: string | null;
   tags?: string | null;

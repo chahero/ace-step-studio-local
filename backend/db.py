@@ -45,6 +45,7 @@ def init_db() -> None:
               id TEXT PRIMARY KEY,
               project_id TEXT,
               model_preset_id TEXT NOT NULL,
+              title TEXT,
               prompt TEXT NOT NULL,
               lyrics TEXT,
               tags TEXT,
@@ -72,6 +73,9 @@ def init_db() -> None:
             );
             """
         )
+        generation_columns = {row["name"] for row in conn.execute("PRAGMA table_info(generations)").fetchall()}
+        if "title" not in generation_columns:
+            conn.execute("ALTER TABLE generations ADD COLUMN title TEXT")
         seed_model_presets(conn)
 
 
@@ -145,6 +149,7 @@ def insert_generation(payload: dict[str, Any]) -> dict[str, Any]:
         "id": generation_id,
         "project_id": payload.get("project_id"),
         "model_preset_id": payload["model_preset_id"],
+        "title": payload.get("title") or payload["prompt"],
         "prompt": payload["prompt"],
         "lyrics": payload.get("lyrics"),
         "tags": payload.get("tags"),
@@ -169,11 +174,11 @@ def insert_generation(payload: dict[str, Any]) -> dict[str, Any]:
         conn.execute(
             """
             INSERT INTO generations (
-              id, project_id, model_preset_id, prompt, lyrics, tags, bpm, duration, timesignature,
+              id, project_id, model_preset_id, title, prompt, lyrics, tags, bpm, duration, timesignature,
               language, keyscale, seed, temperature, cfg_scale, status, output_audio_path,
               workflow_path, error_message, comfyui_prompt_id, created_at, updated_at
             ) VALUES (
-              :id, :project_id, :model_preset_id, :prompt, :lyrics, :tags, :bpm, :duration, :timesignature,
+              :id, :project_id, :model_preset_id, :title, :prompt, :lyrics, :tags, :bpm, :duration, :timesignature,
               :language, :keyscale, :seed, :temperature, :cfg_scale, :status, :output_audio_path,
               :workflow_path, :error_message, :comfyui_prompt_id, :created_at, :updated_at
             )

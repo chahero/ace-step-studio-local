@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 
 
 class GenerationCreate(BaseModel):
+    title: str
     prompt: str
     lyrics: str | None = None
     tags: str | None = None

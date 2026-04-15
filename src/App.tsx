@@ -14,6 +14,7 @@ import {
 import type { Generation, ModelPreset } from './types';
 
 const defaultForm = {
+  title: '',
   prompt: 'A warm, intimate ambient track with soft vocals and slow evolution.',
   lyrics: '',
   tags: '',
@@ -29,9 +30,9 @@ const defaultForm = {
 };
 
 const API_ROOT = 'http://127.0.0.1:8001';
-const SIDEBAR_MIN = 320;
-const SIDEBAR_MAX = 760;
-const DEFAULT_SIDEBAR_WIDTH = 380;
+const SIDEBAR_MIN = 400;
+const SIDEBAR_MAX = 920;
+const DEFAULT_SIDEBAR_WIDTH = 460;
 const DETAIL_PANEL_WIDTH = 340;
 type LibraryStatusFilter = 'all' | Generation['status'];
 type LibrarySortMode = 'newest' | 'oldest';
@@ -245,7 +246,7 @@ export default function App() {
     return generations
       .filter((generation) => {
         const matchesStatus = libraryStatusFilter === 'all' || generation.status === libraryStatusFilter;
-        const haystack = [generation.prompt, generation.tags, generation.model_preset_id, generation.language]
+        const haystack = [generation.title, generation.prompt, generation.tags, generation.model_preset_id, generation.language]
           .filter(Boolean)
           .join(' ')
           .toLowerCase();
@@ -274,8 +275,14 @@ export default function App() {
     setError(null);
 
     try {
+      const title = form.title.trim();
+      if (!title) {
+        throw new Error('Title is required');
+      }
+
       await createGeneration({
         ...form,
+        title,
         seed: form.seed || null,
         lyrics: form.lyrics || null,
         tags: form.prompt || null,
@@ -303,6 +310,7 @@ export default function App() {
       setForm((current) => ({
         ...current,
         prompt: [response.prompt, response.tags].filter(Boolean).join(', ') || current.prompt,
+        title: current.title.trim() || response.prompt || current.prompt,
       }));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Caption generation failed');
@@ -442,7 +450,7 @@ export default function App() {
   }
 
   const currentAudioUrl = getAudioUrl(activeGeneration);
-  const currentTitle = activeGeneration?.prompt ?? 'No song selected';
+  const currentTitle = activeGeneration?.title ?? activeGeneration?.prompt ?? 'No song selected';
   const currentMeta = activeGeneration
     ? `${activeGeneration.model_preset_id} · ${activeGeneration.duration ?? '-'} sec · ${activeGeneration.bpm ?? '-'} BPM`
     : 'Select a song from the library';
@@ -587,6 +595,16 @@ export default function App() {
             </div>
 
           <div className="panel-stack">
+            <label className="block-field">
+              <span>Title *</span>
+              <input
+                className="input"
+                value={form.title}
+                onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+                placeholder="Song title"
+              />
+            </label>
+
             <label className="block-field">
               <div className="field-header">
                 <span>Caption / Tags</span>
@@ -780,7 +798,7 @@ export default function App() {
           </div>
 
           <div className="button-row">
-            <button className="primary-button" type="button" onClick={onGenerate} disabled={loading}>
+            <button className="primary-button" type="button" onClick={onGenerate} disabled={loading || !form.title.trim()}>
               {loading ? 'Generating...' : 'Generate'}
             </button>
           </div>
@@ -901,7 +919,7 @@ export default function App() {
                   <div className="history-left">
                     <div className="library-thumb" />
                     <div className="history-copy">
-                      <strong>{generation.prompt}</strong>
+                      <strong>{generation.title ?? generation.prompt}</strong>
                       <span className="history-description">
                         {generation.tags || generation.model_preset_id}
                       </span>
@@ -930,7 +948,7 @@ export default function App() {
               <div className="detail-panel-top">
                 <div>
                   <div className="detail-eyebrow">Song details</div>
-                  <h3>{activeGeneration.prompt}</h3>
+                  <h3>{activeGeneration.title ?? activeGeneration.prompt}</h3>
                 </div>
                 <button className="detail-close" type="button" onClick={() => setIsDetailPanelOpen(false)} aria-label="Close details">
                   ×
