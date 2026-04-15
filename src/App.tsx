@@ -194,6 +194,51 @@ function DiceIcon() {
   );
 }
 
+function PrevIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 6v12" />
+      <path d="M17 7 10.5 12 17 17Z" />
+    </svg>
+  );
+}
+
+function NextIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M17 6v12" />
+      <path d="M7 7 13.5 12 7 17Z" />
+    </svg>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="currentColor" d="M9 7.5 17 12l-8 4.5Z" />
+    </svg>
+  );
+}
+
+function PauseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="currentColor" d="M9 7h2.5v10H9z" />
+      <path fill="currentColor" d="M12.5 7H15v10h-2.5z" />
+    </svg>
+  );
+}
+
+function OpenIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M14 5h5v5" />
+      <path d="M10 14 19 5" />
+      <path d="M19 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4" />
+    </svg>
+  );
+}
+
 export default function App() {
   const [models, setModels] = useState<ModelPreset[]>([]);
   const [generations, setGenerations] = useState<Generation[]>([]);
@@ -202,6 +247,7 @@ export default function App() {
   const [titleLoading, setTitleLoading] = useState(false);
   const [lyricsLoading, setLyricsLoading] = useState(false);
   const [metadataLoading, setMetadataLoading] = useState(false);
+  const [randomizeLoading, setRandomizeLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isCaptionFocused, setIsCaptionFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -451,6 +497,81 @@ export default function App() {
       setError(cause instanceof Error ? cause.message : 'Metadata suggestion failed');
     } finally {
       setMetadataLoading(false);
+    }
+  }
+
+  async function onRandomizeAll() {
+    setRandomizeLoading(true);
+    setError(null);
+
+    try {
+      const presetIds = Object.keys(presetLibrary) as Array<keyof typeof presetLibrary>;
+      const randomPresetId = presetIds[Math.floor(Math.random() * presetIds.length)] ?? 'base';
+      const preset = presetLibrary[randomPresetId];
+
+      const captionResponse = await generatePromptIdea({
+        prompt: '',
+        lyrics: '',
+        language: preset.language,
+        model_preset_id: randomPresetId,
+      });
+
+      const nextPrompt = [captionResponse.prompt, captionResponse.tags].filter(Boolean).join(', ').trim() || preset.prompt;
+
+      const metadataResponse = await generatePromptMetadata({
+        prompt: nextPrompt,
+        lyrics: '',
+        language: preset.language,
+      });
+
+      const nextMetadata = {
+        bpm: metadataResponse.bpm ?? preset.bpm,
+        duration: metadataResponse.duration ?? preset.duration,
+        timesignature: metadataResponse.timesignature || preset.timesignature,
+        language: metadataResponse.language || preset.language,
+        keyscale: metadataResponse.keyscale || preset.keyscale,
+        seed: metadataResponse.seed ?? preset.seed,
+        temperature: metadataResponse.temperature ?? preset.temperature,
+        cfg_scale: metadataResponse.cfg_scale ?? preset.cfg_scale,
+      };
+
+      const lyricsResponse = await generatePromptLyrics({
+        prompt: nextPrompt,
+        language: nextMetadata.language,
+        bpm: nextMetadata.bpm,
+        duration: nextMetadata.duration,
+        timesignature: nextMetadata.timesignature,
+        keyscale: nextMetadata.keyscale,
+      });
+
+      const nextLyrics = lyricsResponse.lyrics?.trim() || captionResponse.lyrics?.trim() || '';
+
+      const titleResponse = await generatePromptTitle({
+        prompt: nextPrompt,
+        lyrics: nextLyrics,
+        metadata: nextMetadata,
+      });
+
+      setForm((current) => ({
+        ...current,
+        model_preset_id: randomPresetId,
+        title: titleResponse.title?.trim() || current.title,
+        prompt: nextPrompt,
+        lyrics: nextLyrics,
+        bpm: nextMetadata.bpm,
+        duration: nextMetadata.duration,
+        timesignature: nextMetadata.timesignature,
+        language: nextMetadata.language,
+        keyscale: nextMetadata.keyscale,
+        seed: nextMetadata.seed,
+        temperature: nextMetadata.temperature,
+        cfg_scale: nextMetadata.cfg_scale,
+        tags: preset.tags,
+      }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Randomize failed');
+    } finally {
+      setRandomizeLoading(false);
     }
   }
 
@@ -963,8 +1084,19 @@ export default function App() {
           </div>
 
           <div className="button-row">
-            <button className="primary-button" type="button" onClick={onGenerate} disabled={loading || !form.title.trim()}>
+            <button className="primary-button" type="button" onClick={onGenerate} disabled={loading || randomizeLoading || !form.title.trim()}>
               {loading ? 'Generating...' : 'Generate'}
+            </button>
+            <button
+              className="secondary-button randomize-button"
+              type="button"
+              onClick={onRandomizeAll}
+              disabled={randomizeLoading || loading}
+              title="Randomize all fields"
+              aria-label="Randomize all fields"
+            >
+              {randomizeLoading ? <span className="button-spinner" aria-hidden="true" /> : <DiceIcon />}
+              <span>{randomizeLoading ? 'Randomizing...' : 'Randomize'}</span>
             </button>
           </div>
         </div>
@@ -1181,23 +1313,39 @@ export default function App() {
             </div>
           </div>
 
-          <div className="player-center">
-            <div className="player-controls">
-              <button className="secondary-button player-button" type="button" onClick={playPrevious} disabled={activeGenerationIndex <= 0}>
-                Prev
-              </button>
-              <button className="secondary-button player-button player-button-primary" type="button" onClick={togglePlayback} disabled={!currentAudioUrl}>
-                {isPlaying ? 'Pause' : 'Play'}
-              </button>
-              <button
-                className="secondary-button player-button"
-                type="button"
-                onClick={playNext}
-                disabled={activeGenerationIndex < 0 || activeGenerationIndex >= filteredGenerations.length - 1}
-              >
-                Next
-              </button>
-            </div>
+            <div className="player-center">
+              <div className="player-controls">
+                <button
+                  className="secondary-button player-button player-icon-button"
+                  type="button"
+                  onClick={playPrevious}
+                  disabled={activeGenerationIndex <= 0}
+                  aria-label="Previous track"
+                  title="Previous"
+                >
+                  <PrevIcon />
+                </button>
+                <button
+                  className="secondary-button player-button player-button-primary player-icon-button player-play-button"
+                  type="button"
+                  onClick={togglePlayback}
+                  disabled={!currentAudioUrl}
+                  aria-label={isPlaying ? 'Pause' : 'Play'}
+                  title={isPlaying ? 'Pause' : 'Play'}
+                >
+                  {isPlaying ? <PauseIcon /> : <PlayIcon />}
+                </button>
+                <button
+                  className="secondary-button player-button player-icon-button"
+                  type="button"
+                  onClick={playNext}
+                  disabled={activeGenerationIndex < 0 || activeGenerationIndex >= filteredGenerations.length - 1}
+                  aria-label="Next track"
+                  title="Next"
+                >
+                  <NextIcon />
+                </button>
+              </div>
 
             <div className="player-scrubber">
               <span>{formatAudioTime(playerCurrentTime)}</span>
@@ -1217,8 +1365,15 @@ export default function App() {
 
           <div className="player-actions">
             {currentAudioUrl ? (
-              <a className="secondary-button player-button" href={currentAudioUrl} target="_blank" rel="noreferrer">
-                Open
+              <a
+                className="secondary-button player-button player-icon-button player-open-button"
+                href={currentAudioUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Open audio"
+                title="Open audio"
+              >
+                <OpenIcon />
               </a>
             ) : null}
           </div>
