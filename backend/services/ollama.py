@@ -471,3 +471,64 @@ def suggest_metadata(payload: dict[str, object]) -> dict[str, object]:
         "temperature": _coerce_float(parsed.get("temperature"), 0.85),
         "cfg_scale": _coerce_float(parsed.get("cfg_scale"), 2.0),
     }
+
+
+def suggest_title(payload: dict[str, object]) -> dict[str, str]:
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://192.168.0.67:11434")
+    model = os.getenv("OLLAMA_MODEL", "gemma4:e4b")
+
+    prompt = str(payload.get("prompt", "") or "").strip()
+    lyrics = str(payload.get("lyrics", "") or "").strip()
+    metadata = payload.get("metadata")
+    metadata_text = json.dumps(metadata, ensure_ascii=False) if isinstance(metadata, dict) else ""
+
+    request_body = {
+        "model": model,
+        "format": "json",
+        "options": {
+            "temperature": 0.6,
+            "top_p": 0.9,
+            "top_k": 40,
+        },
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You generate short, memorable music titles. "
+                    "Return ONLY valid JSON with exactly one key: title. "
+                    "The title should be 2 to 5 words, natural, and fit the song concept."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Caption / tags: {prompt}\n"
+                    f"Lyrics: {lyrics}\n"
+                    f"Metadata: {metadata_text}\n"
+                    "Suggest a concise title."
+                ),
+            },
+        ],
+        "stream": False,
+    }
+
+    content = _ollama_chat(base_url, request_body)
+    if not content:
+        raise RuntimeError("Ollama returned incomplete JSON. Try again.")
+
+    text = str(content).strip()
+    parsed = _extract_json_block(text)
+    if not isinstance(parsed, dict):
+        parsed = _repair_json_output(
+            base_url=base_url,
+            model=model,
+            original_text=text,
+            required_keys=["title"],
+            description="title suggestion output",
+        )
+
+    title = _normalize_text(str(parsed.get("title", "")) or "")
+    if not title:
+        raise RuntimeError("Ollama returned incomplete JSON. Try again.")
+
+    return {"title": title}

@@ -482,8 +482,28 @@ label,
   gap: 8px;
 }
 
+.sound-cloud-inline {
+  display: grid;
+  gap: 8px;
+  margin-top: -2px;
+  margin-bottom: 2px;
+}
+
+.sound-cloud-label {
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sound-cloud-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .sound-chip {
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.04);

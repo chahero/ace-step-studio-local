@@ -7,6 +7,7 @@ import {
   generatePromptIdea,
   generatePromptLyrics,
   generatePromptMetadata,
+  generatePromptTitle,
   loadGenerations,
   loadModels,
   retryGeneration,
@@ -161,9 +162,11 @@ export default function App() {
   const [generations, setGenerations] = useState<Generation[]>([]);
   const [loading, setLoading] = useState(false);
   const [captionLoading, setCaptionLoading] = useState(false);
+  const [titleLoading, setTitleLoading] = useState(false);
   const [lyricsLoading, setLyricsLoading] = useState(false);
   const [metadataLoading, setMetadataLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isCaptionFocused, setIsCaptionFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [activeGenerationId, setActiveGenerationId] = useState<string | null>(null);
@@ -316,6 +319,37 @@ export default function App() {
       setError(cause instanceof Error ? cause.message : 'Caption generation failed');
     } finally {
       setCaptionLoading(false);
+    }
+  }
+
+  async function onGenerateTitle() {
+    setTitleLoading(true);
+    setError(null);
+
+    try {
+      const response = await generatePromptTitle({
+        prompt: form.prompt,
+        lyrics: form.lyrics,
+        metadata: {
+          bpm: form.bpm,
+          duration: form.duration,
+          timesignature: form.timesignature,
+          language: form.language,
+          keyscale: form.keyscale,
+          seed: form.seed,
+          temperature: form.temperature,
+          cfg_scale: form.cfg_scale,
+        },
+      });
+
+      setForm((current) => ({
+        ...current,
+        title: response.title || current.title,
+      }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Title suggestion failed');
+    } finally {
+      setTitleLoading(false);
     }
   }
 
@@ -595,17 +629,29 @@ export default function App() {
             </div>
 
           <div className="panel-stack">
-            <label className="block-field">
-              <span>Title *</span>
+            <div className="block-field">
+              <div className="field-header">
+                <span>Title *</span>
+                <button
+                  className={`secondary-button field-action dice-action ${titleLoading ? 'is-loading' : ''}`}
+                  type="button"
+                  onClick={onGenerateTitle}
+                  disabled={titleLoading}
+                  title="Suggest Title"
+                  aria-label="Suggest Title"
+                >
+                  {titleLoading ? <span className="button-spinner" aria-hidden="true" /> : <DiceIcon />}
+                </button>
+              </div>
               <input
                 className="input"
                 value={form.title}
                 onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
                 placeholder="Song title"
               />
-            </label>
+            </div>
 
-            <label className="block-field">
+            <div className="block-field">
               <div className="field-header">
                 <span>Caption / Tags</span>
                 <button
@@ -624,28 +670,35 @@ export default function App() {
                 value={form.prompt}
                 onChange={(event) => setForm((current) => ({ ...current, prompt: event.target.value }))}
                 rows={7}
+                onFocus={() => setIsCaptionFocused(true)}
+                onBlur={() => setIsCaptionFocused(false)}
                 placeholder="Describe the song in one strong idea. This value is sent to ComfyUI as tags."
                 />
-              </label>
-
-            <div className="sound-cloud">
-              {soundPalette.map((sound) => {
-                const isActive = splitTags(form.prompt).includes(sound);
-                return (
-                  <button
-                    key={sound}
-                    type="button"
-                    className={`sound-chip ${isActive ? 'is-active' : ''}`}
-                    onClick={() => toggleSoundTag(sound)}
-                    aria-pressed={isActive}
-                  >
-                    {sound}
-                  </button>
-                );
-              })}
             </div>
 
-            <div className="advanced-section">
+            {isCaptionFocused ? (
+              <div className="sound-cloud sound-cloud-inline">
+                <div className="sound-cloud-label">Suggested tags</div>
+                <div className="sound-cloud-tags">
+                  {soundPalette.map((sound) => {
+                    const isActive = splitTags(form.prompt).includes(sound);
+                    return (
+                      <button
+                        key={sound}
+                        type="button"
+                        className={`sound-chip ${isActive ? 'is-active' : ''}`}
+                        onClick={() => toggleSoundTag(sound)}
+                        aria-pressed={isActive}
+                      >
+                        {sound}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="block-field">
               <div className="field-header">
                 <span>Metadata</span>
                 <button
@@ -659,121 +712,123 @@ export default function App() {
                   {metadataLoading ? <span className="button-spinner" aria-hidden="true" /> : <DiceIcon />}
                 </button>
               </div>
-              <div className="field-grid">
-                <label>
-                  <span>BPM</span>
-                  <input
-                    className="input"
-                    type="number"
-                    value={form.bpm}
-                    onChange={(event) => setForm((current) => ({ ...current, bpm: Number(event.target.value) }))}
-                  />
-                </label>
+              <div className="advanced-section">
+                <div className="field-grid">
+                  <label>
+                    <span>BPM</span>
+                    <input
+                      className="input"
+                      type="number"
+                      value={form.bpm}
+                      onChange={(event) => setForm((current) => ({ ...current, bpm: Number(event.target.value) }))}
+                    />
+                  </label>
 
-                <label>
-                  <span>Duration</span>
-                  <input
-                    className="input"
-                    type="number"
-                    value={form.duration}
-                    onChange={(event) => setForm((current) => ({ ...current, duration: Number(event.target.value) }))}
-                  />
-                </label>
+                  <label>
+                    <span>Duration</span>
+                    <input
+                      className="input"
+                      type="number"
+                      value={form.duration}
+                      onChange={(event) => setForm((current) => ({ ...current, duration: Number(event.target.value) }))}
+                    />
+                  </label>
 
-                <label>
-                  <span>Key</span>
-                  <input
-                    className="input"
-                    value={form.keyscale}
-                    onChange={(event) => setForm((current) => ({ ...current, keyscale: event.target.value }))}
-                  />
-                </label>
+                  <label>
+                    <span>Key</span>
+                    <input
+                      className="input"
+                      value={form.keyscale}
+                      onChange={(event) => setForm((current) => ({ ...current, keyscale: event.target.value }))}
+                    />
+                  </label>
 
-                <label>
-                  <span>Language</span>
-                  <div className="language-select" ref={languageMenuRef}>
-                    <button
-                      type="button"
-                      className="input language-select-trigger"
-                      onClick={() => setIsLanguageMenuOpen((current) => !current)}
-                      aria-haspopup="listbox"
-                      aria-expanded={isLanguageMenuOpen}
-                    >
-                      <span>{languageOptions.find((option) => option.value === form.language)?.label ?? 'EN'}</span>
-                      <span className="language-select-caret" aria-hidden="true">
-                        ▾
-                      </span>
-                    </button>
-                    {isLanguageMenuOpen ? (
-                      <div className="language-select-menu" role="listbox" aria-label="Language">
-                        {languageOptions.map((option) => {
-                          const isSelected = option.value === form.language;
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              className={`language-select-option ${isSelected ? 'is-selected' : ''}`}
-                              onClick={() => {
-                                setForm((current) => ({ ...current, language: option.value }));
-                                setIsLanguageMenuOpen(false);
-                              }}
-                              role="option"
-                              aria-selected={isSelected}
-                            >
-                              <span className="language-select-code">{option.label}</span>
-                              <span className="language-select-name">{option.fullLabel}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : null}
-                  </div>
-                </label>
+                  <label>
+                    <span>Language</span>
+                    <div className="language-select" ref={languageMenuRef}>
+                      <button
+                        type="button"
+                        className="input language-select-trigger"
+                        onClick={() => setIsLanguageMenuOpen((current) => !current)}
+                        aria-haspopup="listbox"
+                        aria-expanded={isLanguageMenuOpen}
+                      >
+                        <span>{languageOptions.find((option) => option.value === form.language)?.label ?? 'EN'}</span>
+                        <span className="language-select-caret" aria-hidden="true">
+                          ▾
+                        </span>
+                      </button>
+                      {isLanguageMenuOpen ? (
+                        <div className="language-select-menu" role="listbox" aria-label="Language">
+                          {languageOptions.map((option) => {
+                            const isSelected = option.value === form.language;
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                className={`language-select-option ${isSelected ? 'is-selected' : ''}`}
+                                onClick={() => {
+                                  setForm((current) => ({ ...current, language: option.value }));
+                                  setIsLanguageMenuOpen(false);
+                                }}
+                                role="option"
+                                aria-selected={isSelected}
+                              >
+                                <span className="language-select-code">{option.label}</span>
+                                <span className="language-select-name">{option.fullLabel}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  </label>
 
-                <label>
-                  <span>Seed</span>
-                  <input
-                    className="input"
-                    type="number"
-                    value={form.seed}
-                    onChange={(event) => setForm((current) => ({ ...current, seed: Number(event.target.value) }))}
-                  />
-                </label>
+                  <label>
+                    <span>Seed</span>
+                    <input
+                      className="input"
+                      type="number"
+                      value={form.seed}
+                      onChange={(event) => setForm((current) => ({ ...current, seed: Number(event.target.value) }))}
+                    />
+                  </label>
 
-                <label>
-                  <span>Time Signature</span>
-                  <input
-                    className="input"
-                    value={form.timesignature}
-                    onChange={(event) => setForm((current) => ({ ...current, timesignature: event.target.value }))}
-                  />
-                </label>
+                  <label>
+                    <span>Time Signature</span>
+                    <input
+                      className="input"
+                      value={form.timesignature}
+                      onChange={(event) => setForm((current) => ({ ...current, timesignature: event.target.value }))}
+                    />
+                  </label>
 
-                <label>
-                  <span>Temperature</span>
-                  <input
-                    className="input"
-                    type="number"
-                    step="0.01"
-                    value={form.temperature}
-                    onChange={(event) => setForm((current) => ({ ...current, temperature: Number(event.target.value) }))}
-                  />
-                </label>
+                  <label>
+                    <span>Temperature</span>
+                    <input
+                      className="input"
+                      type="number"
+                      step="0.01"
+                      value={form.temperature}
+                      onChange={(event) => setForm((current) => ({ ...current, temperature: Number(event.target.value) }))}
+                    />
+                  </label>
 
-                <label>
-                  <span>CFG Scale</span>
-                  <input
-                    className="input"
-                    type="number"
-                    step="0.1"
-                    value={form.cfg_scale}
-                    onChange={(event) => setForm((current) => ({ ...current, cfg_scale: Number(event.target.value) }))}
-                  />
-                </label>
+                  <label>
+                    <span>CFG Scale</span>
+                    <input
+                      className="input"
+                      type="number"
+                      step="0.1"
+                      value={form.cfg_scale}
+                      onChange={(event) => setForm((current) => ({ ...current, cfg_scale: Number(event.target.value) }))}
+                    />
+                  </label>
+                </div>
               </div>
             </div>
 
-            <label className="block-field">
+            <div className="block-field">
               <div className="field-header">
                 <span>Lyrics</span>
                 <button
@@ -794,7 +849,7 @@ export default function App() {
                 rows={8}
                 placeholder="Write sections like [Verse], [Chorus], or leave blank for instrumental. Uses caption/tags plus metadata."
               />
-              </label>
+            </div>
           </div>
 
           <div className="button-row">
@@ -919,8 +974,8 @@ export default function App() {
                   <div className="history-left">
                     <div className="library-thumb" />
                     <div className="history-copy">
-                      <strong>{generation.title ?? generation.prompt}</strong>
-                      <span className="history-description">
+                <strong>{generation.title ?? generation.prompt}</strong>
+                <span className="history-description">
                         {generation.tags || generation.model_preset_id}
                       </span>
                       <span>

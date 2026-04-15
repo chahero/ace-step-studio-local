@@ -5,6 +5,7 @@ import type {
   PromptIdeaResponse,
   PromptLyricsResponse,
   PromptMetadataResponse,
+  PromptTitleResponse,
 } from './types';
 
 const API_BASE_URL = 'http://127.0.0.1:8001/api';
@@ -81,6 +82,13 @@ export async function generatePromptLyrics(input: Record<string, unknown>): Prom
 
 export async function generatePromptMetadata(input: Record<string, unknown>): Promise<PromptMetadataResponse> {
   return requestJSON<PromptMetadataResponse>('/prompt/metadata', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function generatePromptTitle(input: Record<string, unknown>): Promise<PromptTitleResponse> {
+  return requestJSON<PromptTitleResponse>('/prompt/title', {
     method: 'POST',
     body: JSON.stringify(input),
   });

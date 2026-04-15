@@ -58,3 +58,7 @@ export type PromptMetadataResponse = {
   temperature: number;
   cfg_scale: number;
 };
+
+export type PromptTitleResponse = {
+  title: string;
+};

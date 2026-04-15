@@ -43,3 +43,9 @@ class PromptMetadataRequest(BaseModel):
     prompt: str
     lyrics: str | None = None
     language: str | None = None
+
+
+class PromptTitleRequest(BaseModel):
+    prompt: str
+    lyrics: str | None = None
+    metadata: dict[str, object] | None = None
