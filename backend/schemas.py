@@ -27,3 +27,18 @@ class PromptIdeaRequest(BaseModel):
     lyrics: str | None = None
     language: str | None = None
     model_preset_id: str | None = None
+
+
+class PromptLyricsRequest(BaseModel):
+    prompt: str
+    language: str | None = None
+    bpm: int | None = None
+    duration: int | None = None
+    timesignature: str | None = None
+    keyscale: str | None = None
+
+
+class PromptMetadataRequest(BaseModel):
+    prompt: str
+    lyrics: str | None = None
+    language: str | None = None

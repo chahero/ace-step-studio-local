@@ -17,7 +17,7 @@ from backend.db import (
     mark_generation_retry,
     update_generation_status,
 )
-from backend.schemas import GenerationCreate, PromptAssistRequest, PromptIdeaRequest
+from backend.schemas import GenerationCreate, PromptAssistRequest, PromptIdeaRequest, PromptLyricsRequest, PromptMetadataRequest
 from backend.services import comfyui, ollama, storage
 
 app = FastAPI(title="Ace Step Studio API", version="0.1.0")
@@ -124,6 +124,22 @@ def assist_prompt(payload: PromptAssistRequest) -> dict[str, str]:
 def generate_prompt_idea(payload: PromptIdeaRequest) -> dict[str, str]:
     try:
         return ollama.generate_prompt_idea(payload.model_dump())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/api/prompt/lyrics")
+def generate_prompt_lyrics(payload: PromptLyricsRequest) -> dict[str, str]:
+    try:
+        return ollama.generate_lyrics_draft(payload.model_dump())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/api/prompt/metadata")
+def suggest_prompt_metadata(payload: PromptMetadataRequest) -> dict[str, object]:
+    try:
+        return ollama.suggest_metadata(payload.model_dump())
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 

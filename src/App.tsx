@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { assistPrompt, createGeneration, deleteGeneration, generatePromptIdea, loadGenerations, loadModels, retryGeneration } from './api';
+import {
+  createGeneration,
+  deleteGeneration,
+  generatePromptIdea,
+  generatePromptLyrics,
+  generatePromptMetadata,
+  loadGenerations,
+  loadModels,
+  retryGeneration,
+} from './api';
 import type { Generation, ModelPreset } from './types';
 
 const defaultForm = {
@@ -101,6 +110,16 @@ const soundPalette = [
   'drift',
 ];
 
+const languageOptions = [
+  { value: 'en', label: 'EN', fullLabel: 'English' },
+  { value: 'ko', label: 'KO', fullLabel: 'Korean' },
+  { value: 'ja', label: 'JA', fullLabel: 'Japanese' },
+  { value: 'zh', label: 'ZH', fullLabel: 'Chinese' },
+  { value: 'es', label: 'ES', fullLabel: 'Spanish' },
+  { value: 'fr', label: 'FR', fullLabel: 'French' },
+  { value: 'de', label: 'DE', fullLabel: 'German' },
+];
+
 function splitTags(value: string) {
   return value
     .split(',')
@@ -132,8 +151,9 @@ export default function App() {
   const [models, setModels] = useState<ModelPreset[]>([]);
   const [generations, setGenerations] = useState<Generation[]>([]);
   const [loading, setLoading] = useState(false);
-  const [assistLoading, setAssistLoading] = useState(false);
-  const [ideaLoading, setIdeaLoading] = useState(false);
+  const [captionLoading, setCaptionLoading] = useState(false);
+  const [lyricsLoading, setLyricsLoading] = useState(false);
+  const [metadataLoading, setMetadataLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(defaultForm);
@@ -142,10 +162,14 @@ export default function App() {
   const [librarySearch, setLibrarySearch] = useState('');
   const [libraryStatusFilter, setLibraryStatusFilter] = useState<LibraryStatusFilter>('all');
   const [librarySortMode, setLibrarySortMode] = useState<LibrarySortMode>('newest');
+  const [isLibrarySortMenuOpen, setIsLibrarySortMenuOpen] = useState(false);
   const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
+  const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
   const [playerCurrentTime, setPlayerCurrentTime] = useState(0);
   const [playerDuration, setPlayerDuration] = useState(0);
   const dragState = useRef<{ startX: number; startWidth: number } | null>(null);
+  const languageMenuRef = useRef<HTMLDivElement | null>(null);
+  const librarySortMenuRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -187,6 +211,21 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem('ace-step-sidebar-width', String(sidebarWidth));
   }, [sidebarWidth]);
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (languageMenuRef.current && target && !languageMenuRef.current.contains(target)) {
+        setIsLanguageMenuOpen(false);
+      }
+      if (librarySortMenuRef.current && target && !librarySortMenuRef.current.contains(target)) {
+        setIsLibrarySortMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, []);
 
   const activeGeneration = useMemo(
     () => generations.find((generation) => generation.id === activeGenerationId) ?? generations[0] ?? null,
@@ -231,7 +270,7 @@ export default function App() {
         ...form,
         seed: form.seed || null,
         lyrics: form.lyrics || null,
-        tags: form.tags || null,
+        tags: form.prompt || null,
       });
       await refreshGenerations();
     } catch (cause) {
@@ -241,31 +280,8 @@ export default function App() {
     }
   }
 
-  async function onAssist() {
-    setAssistLoading(true);
-    setError(null);
-
-    try {
-      const response = await assistPrompt({
-        prompt: form.prompt,
-        lyrics: form.lyrics,
-        language: form.language,
-      });
-
-      setForm((current) => ({
-        ...current,
-        tags: response.tags,
-        lyrics: response.lyrics || current.lyrics,
-      }));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Prompt assist failed');
-    } finally {
-      setAssistLoading(false);
-    }
-  }
-
-  async function onGenerateIdea() {
-    setIdeaLoading(true);
+  async function onGenerateCaption() {
+    setCaptionLoading(true);
     setError(null);
 
     try {
@@ -278,14 +294,66 @@ export default function App() {
 
       setForm((current) => ({
         ...current,
-        prompt: response.prompt || current.prompt,
-        tags: response.tags || current.tags,
+        prompt: [response.prompt, response.tags].filter(Boolean).join(', ') || current.prompt,
+      }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Caption generation failed');
+    } finally {
+      setCaptionLoading(false);
+    }
+  }
+
+  async function onGenerateLyrics() {
+    setLyricsLoading(true);
+    setError(null);
+
+    try {
+      const response = await generatePromptLyrics({
+        prompt: form.prompt,
+        language: form.language,
+        bpm: form.bpm || null,
+        duration: form.duration || null,
+        timesignature: form.timesignature,
+        keyscale: form.keyscale,
+      });
+
+      setForm((current) => ({
+        ...current,
         lyrics: response.lyrics || current.lyrics,
       }));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Idea generation failed');
+      setError(cause instanceof Error ? cause.message : 'Lyrics generation failed');
     } finally {
-      setIdeaLoading(false);
+      setLyricsLoading(false);
+    }
+  }
+
+  async function onGenerateMetadata() {
+    setMetadataLoading(true);
+    setError(null);
+
+    try {
+      const response = await generatePromptMetadata({
+        prompt: form.prompt,
+        lyrics: form.lyrics,
+        language: form.language,
+      });
+
+      setForm((current) => ({
+        ...current,
+        bpm: response.bpm ?? current.bpm,
+        duration: response.duration ?? current.duration,
+        timesignature: response.timesignature || current.timesignature,
+        language: response.language || current.language,
+        keyscale: response.keyscale || current.keyscale,
+        seed: response.seed ?? current.seed,
+        temperature: response.temperature ?? current.temperature,
+        cfg_scale: response.cfg_scale ?? current.cfg_scale,
+      }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Metadata suggestion failed');
+    } finally {
+      setMetadataLoading(false);
     }
   }
 
@@ -340,7 +408,7 @@ export default function App() {
 
   function toggleSoundTag(tag: string) {
     setForm((current) => {
-      const tags = splitTags(current.tags);
+      const tags = splitTags(current.prompt);
       const normalizedTag = tag.trim();
       const nextTags = tags.includes(normalizedTag)
         ? tags.filter((existingTag) => existingTag !== normalizedTag)
@@ -348,7 +416,7 @@ export default function App() {
 
       return {
         ...current,
-        tags: nextTags.join(', '),
+        prompt: nextTags.join(', '),
       };
     });
   }
@@ -510,66 +578,32 @@ export default function App() {
               })}
             </div>
 
-          <div className="sidebar-actions">
-            <button className={`secondary-button action-button ${assistLoading ? 'is-loading' : ''}`} type="button" onClick={onAssist} disabled={assistLoading}>
-              <span className="action-button-content">
-                <span className="action-button-label">{assistLoading ? 'Refining...' : 'Refine Prompt'}</span>
-                {assistLoading ? <span className="button-spinner" aria-hidden="true" /> : null}
-              </span>
-            </button>
-            <button
-              className={`secondary-button idea-button ${ideaLoading ? 'is-loading' : ''}`}
-              type="button"
-              onClick={onGenerateIdea}
-              disabled={ideaLoading}
-              aria-label={ideaLoading ? 'Generating idea' : 'Generate idea'}
-              title={ideaLoading ? 'Generating idea' : 'Generate idea'}
-            >
-              {ideaLoading ? <span className="button-spinner idea-spinner" aria-hidden="true" /> : null}
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" className="idea-icon">
-                <rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" strokeWidth="1.7" />
-                <circle cx="8" cy="8" r="1.3" fill="currentColor" />
-                <circle cx="16" cy="8" r="1.3" fill="currentColor" />
-                <circle cx="8" cy="16" r="1.3" fill="currentColor" />
-                <circle cx="16" cy="16" r="1.3" fill="currentColor" />
-                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-              </svg>
-            </button>
-          </div>
-
           <div className="panel-stack">
             <label className="block-field">
-              <span>Caption</span>
+              <div className="field-header">
+                <span>Caption / Tags</span>
+                <button
+                  className={`secondary-button field-action ${captionLoading ? 'is-loading' : ''}`}
+                  type="button"
+                  onClick={onGenerateCaption}
+                  disabled={captionLoading}
+                >
+                  {captionLoading ? <span className="button-spinner" aria-hidden="true" /> : null}
+                  {captionLoading ? 'Generating...' : 'Generate Caption'}
+                </button>
+              </div>
               <textarea
                 className="textarea textarea-small"
                 value={form.prompt}
                 onChange={(event) => setForm((current) => ({ ...current, prompt: event.target.value }))}
                 rows={7}
-                placeholder="Describe the song in one strong idea"
-              />
-            </label>
-
-            <label className="block-field">
-              <span>Lyrics</span>
-              <textarea
-                className="textarea textarea-small"
-                value={form.lyrics}
-                onChange={(event) => setForm((current) => ({ ...current, lyrics: event.target.value }))}
-                rows={8}
-                placeholder="Write sections like [Verse], [Chorus], or leave blank for instrumental"
-              />
-            </label>
-
-            <div className="tab-copy subtle">
-              <div className="tab-copy-title">Sound direction</div>
-              <div className="tab-copy-description">
-                Pick a few tags to steer texture, genre, and energy. You can still type your own tags below.
-              </div>
-            </div>
+                placeholder="Describe the song in one strong idea. This value is sent to ComfyUI as tags."
+                />
+              </label>
 
             <div className="sound-cloud">
               {soundPalette.map((sound) => {
-                const isActive = splitTags(form.tags).includes(sound);
+                const isActive = splitTags(form.prompt).includes(sound);
                 return (
                   <button
                     key={sound}
@@ -584,19 +618,19 @@ export default function App() {
               })}
             </div>
 
-            <label className="block-field">
-              <span>Sound tags</span>
-              <textarea
-                className="textarea"
-                value={form.tags}
-                onChange={(event) => setForm((current) => ({ ...current, tags: event.target.value }))}
-                rows={4}
-                placeholder="Mood, texture, voice, instruments, and production style"
-              />
-            </label>
-
-            <details className="advanced-section" open>
-              <summary>Advanced metadata</summary>
+            <div className="advanced-section">
+              <div className="field-header">
+                <span>Metadata</span>
+                <button
+                  className={`secondary-button field-action ${metadataLoading ? 'is-loading' : ''}`}
+                  type="button"
+                  onClick={onGenerateMetadata}
+                  disabled={metadataLoading}
+                >
+                  {metadataLoading ? <span className="button-spinner" aria-hidden="true" /> : null}
+                  {metadataLoading ? 'Suggesting...' : 'Suggest Metadata'}
+                </button>
+              </div>
               <div className="advanced-summary">
                 BPM, duration, key, language, seed, meter, temperature, and CFG scale.
               </div>
@@ -632,11 +666,43 @@ export default function App() {
 
                 <label>
                   <span>Language</span>
-                  <input
-                    className="input"
-                    value={form.language}
-                    onChange={(event) => setForm((current) => ({ ...current, language: event.target.value }))}
-                  />
+                  <div className="language-select" ref={languageMenuRef}>
+                    <button
+                      type="button"
+                      className="input language-select-trigger"
+                      onClick={() => setIsLanguageMenuOpen((current) => !current)}
+                      aria-haspopup="listbox"
+                      aria-expanded={isLanguageMenuOpen}
+                    >
+                      <span>{languageOptions.find((option) => option.value === form.language)?.label ?? 'EN'}</span>
+                      <span className="language-select-caret" aria-hidden="true">
+                        ▾
+                      </span>
+                    </button>
+                    {isLanguageMenuOpen ? (
+                      <div className="language-select-menu" role="listbox" aria-label="Language">
+                        {languageOptions.map((option) => {
+                          const isSelected = option.value === form.language;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              className={`language-select-option ${isSelected ? 'is-selected' : ''}`}
+                              onClick={() => {
+                                setForm((current) => ({ ...current, language: option.value }));
+                                setIsLanguageMenuOpen(false);
+                              }}
+                              role="option"
+                              aria-selected={isSelected}
+                            >
+                              <span className="language-select-code">{option.label}</span>
+                              <span className="language-select-name">{option.fullLabel}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
                 </label>
 
                 <label>
@@ -680,7 +746,29 @@ export default function App() {
                   />
                 </label>
               </div>
-            </details>
+            </div>
+
+            <label className="block-field">
+              <div className="field-header">
+                <span>Lyrics</span>
+                <button
+                  className={`secondary-button field-action ${lyricsLoading ? 'is-loading' : ''}`}
+                  type="button"
+                  onClick={onGenerateLyrics}
+                  disabled={lyricsLoading}
+                >
+                  {lyricsLoading ? <span className="button-spinner" aria-hidden="true" /> : null}
+                  {lyricsLoading ? 'Generating...' : 'Suggest Lyrics'}
+                </button>
+              </div>
+              <textarea
+                className="textarea textarea-small"
+                value={form.lyrics}
+                onChange={(event) => setForm((current) => ({ ...current, lyrics: event.target.value }))}
+                rows={8}
+                placeholder="Write sections like [Verse], [Chorus], or leave blank for instrumental. Uses caption/tags plus metadata."
+              />
+              </label>
           </div>
 
           <div className="button-row">
@@ -750,14 +838,45 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              <select
-                className="library-sort"
-                value={librarySortMode}
-                onChange={(event) => setLibrarySortMode(event.target.value as LibrarySortMode)}
-              >
-                <option value="newest">Newest</option>
-                <option value="oldest">Oldest</option>
-              </select>
+              <div className="library-sort-wrap" ref={librarySortMenuRef}>
+                <button
+                  type="button"
+                  className="library-sort-trigger"
+                  onClick={() => setIsLibrarySortMenuOpen((current) => !current)}
+                  aria-haspopup="listbox"
+                  aria-expanded={isLibrarySortMenuOpen}
+                >
+                  <span>{librarySortMode === 'newest' ? 'Newest' : 'Oldest'}</span>
+                  <span className="library-sort-caret" aria-hidden="true">
+                    ▾
+                  </span>
+                </button>
+                {isLibrarySortMenuOpen ? (
+                  <div className="library-sort-menu" role="listbox" aria-label="Sort songs">
+                    {[
+                      { value: 'newest' as const, label: 'Newest' },
+                      { value: 'oldest' as const, label: 'Oldest' },
+                    ].map((option) => {
+                      const isSelected = librarySortMode === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className={`library-sort-option ${isSelected ? 'is-selected' : ''}`}
+                          onClick={() => {
+                            setLibrarySortMode(option.value);
+                            setIsLibrarySortMenuOpen(false);
+                          }}
+                          role="option"
+                          aria-selected={isSelected}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             <div className="history-list">

@@ -46,6 +46,24 @@ def _extract_json_block(text: str) -> dict[str, object] | None:
     return None
 
 
+def _coerce_int(value: object, default: int) -> int:
+    try:
+        if value is None:
+            return default
+        return int(float(str(value).strip()))
+    except (TypeError, ValueError):
+        return default
+
+
+def _coerce_float(value: object, default: float) -> float:
+    try:
+        if value is None:
+            return default
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return default
+
+
 def _random_idea_fallback(prompt: str, lyrics: str) -> dict[str, str]:
     ideas = [
         {
@@ -321,3 +339,135 @@ def generate_prompt_idea(payload: dict[str, object]) -> dict[str, str]:
         return result
 
     raise RuntimeError("Ollama returned an unexpected format. Ask it to return JSON and try again.")
+
+
+def generate_lyrics_draft(payload: dict[str, object]) -> dict[str, str]:
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://192.168.0.67:11434")
+    model = os.getenv("OLLAMA_MODEL", "gemma4:e4b")
+
+    prompt = str(payload.get("prompt", "") or "").strip()
+    language = str(payload.get("language", "en") or "en").strip()
+    bpm = payload.get("bpm")
+    duration = payload.get("duration")
+    timesignature = str(payload.get("timesignature", "") or "").strip()
+    keyscale = str(payload.get("keyscale", "") or "").strip()
+
+    request_body = {
+        "model": model,
+        "format": "json",
+        "options": {
+            "temperature": 0.85,
+            "top_p": 0.92,
+            "top_k": 40,
+        },
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You write concise, structured song lyrics for an audio generation studio. "
+                    "Return ONLY valid JSON with exactly one key: lyrics. "
+                    "lyrics must use real newlines and section markers like [Verse], [Chorus], or [Instrumental]."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Caption / tags: {prompt}\n"
+                    f"Language: {language}\n"
+                    f"BPM: {bpm if bpm not in (None, '') else 'unspecified'}\n"
+                    f"Duration: {duration if duration not in (None, '') else 'unspecified'}\n"
+                    f"Time signature: {timesignature or 'unspecified'}\n"
+                    f"Key: {keyscale or 'unspecified'}\n"
+                    "Write a short but usable lyric draft based on the caption/tags."
+                ),
+            },
+        ],
+        "stream": False,
+    }
+
+    content = _ollama_chat(base_url, request_body)
+    if not content:
+        raise RuntimeError("Ollama returned incomplete JSON. Try again.")
+
+    text = str(content).strip()
+    parsed = _extract_json_block(text)
+    if not isinstance(parsed, dict):
+        parsed = _repair_json_output(
+            base_url=base_url,
+            model=model,
+            original_text=text,
+            required_keys=["lyrics"],
+            description="lyrics draft output",
+        )
+
+    lyrics = _normalize_text(str(parsed.get("lyrics", "")) or "")
+    if not lyrics:
+        raise RuntimeError("Ollama returned incomplete JSON. Try again.")
+
+    return {"lyrics": lyrics}
+
+
+def suggest_metadata(payload: dict[str, object]) -> dict[str, object]:
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://192.168.0.67:11434")
+    model = os.getenv("OLLAMA_MODEL", "gemma4:e4b")
+
+    prompt = str(payload.get("prompt", "") or "").strip()
+    lyrics = str(payload.get("lyrics", "") or "").strip()
+    language = str(payload.get("language", "en") or "en").strip()
+
+    request_body = {
+        "model": model,
+        "format": "json",
+        "options": {
+            "temperature": 0.5,
+            "top_p": 0.85,
+            "top_k": 40,
+        },
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You suggest practical generation metadata for an audio model. "
+                    "Return ONLY valid JSON with exactly these keys: bpm, duration, timesignature, language, keyscale, seed, temperature, cfg_scale. "
+                    "Use numbers for bpm, duration, seed, temperature, cfg_scale; use strings for the others. "
+                    "Keep values realistic and usable for music generation."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Caption / tags: {prompt}\n"
+                    f"Lyrics: {lyrics}\n"
+                    f"Language: {language}\n"
+                    "Suggest metadata that fits this idea."
+                ),
+            },
+        ],
+        "stream": False,
+    }
+
+    content = _ollama_chat(base_url, request_body)
+    if not content:
+        raise RuntimeError("Ollama returned incomplete JSON. Try again.")
+
+    text = str(content).strip()
+    parsed = _extract_json_block(text)
+    if not isinstance(parsed, dict):
+        parsed = _repair_json_output(
+            base_url=base_url,
+            model=model,
+            original_text=text,
+            required_keys=["bpm", "duration", "timesignature", "language", "keyscale", "seed", "temperature", "cfg_scale"],
+            description="metadata suggestion output",
+        )
+
+    return {
+        "bpm": _coerce_int(parsed.get("bpm"), 72),
+        "duration": _coerce_int(parsed.get("duration"), 120),
+        "timesignature": str(parsed.get("timesignature") or "4"),
+        "language": str(parsed.get("language") or language or "en"),
+        "keyscale": str(parsed.get("keyscale") or "E minor"),
+        "seed": _coerce_int(parsed.get("seed"), 0),
+        "temperature": _coerce_float(parsed.get("temperature"), 0.85),
+        "cfg_scale": _coerce_float(parsed.get("cfg_scale"), 2.0),
+    }

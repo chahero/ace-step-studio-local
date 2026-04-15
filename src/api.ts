@@ -1,4 +1,11 @@
-import type { Generation, ModelPreset, PromptAssistResponse, PromptIdeaResponse } from './types';
+import type {
+  Generation,
+  ModelPreset,
+  PromptAssistResponse,
+  PromptIdeaResponse,
+  PromptLyricsResponse,
+  PromptMetadataResponse,
+} from './types';
 
 const API_BASE_URL = 'http://127.0.0.1:8001/api';
 
@@ -60,6 +67,20 @@ export async function assistPrompt(input: Record<string, unknown>): Promise<Prom
 
 export async function generatePromptIdea(input: Record<string, unknown>): Promise<PromptIdeaResponse> {
   return requestJSON<PromptIdeaResponse>('/prompt/idea', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function generatePromptLyrics(input: Record<string, unknown>): Promise<PromptLyricsResponse> {
+  return requestJSON<PromptLyricsResponse>('/prompt/lyrics', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function generatePromptMetadata(input: Record<string, unknown>): Promise<PromptMetadataResponse> {
+  return requestJSON<PromptMetadataResponse>('/prompt/metadata', {
     method: 'POST',
     body: JSON.stringify(input),
   });

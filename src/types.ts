@@ -42,3 +42,18 @@ export type PromptIdeaResponse = {
   tags: string;
   lyrics: string;
 };
+
+export type PromptLyricsResponse = {
+  lyrics: string;
+};
+
+export type PromptMetadataResponse = {
+  bpm: number;
+  duration: number;
+  timesignature: string;
+  language: string;
+  keyscale: string;
+  seed: number;
+  temperature: number;
+  cfg_scale: number;
+};
