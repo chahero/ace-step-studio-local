@@ -304,6 +304,16 @@ function VolumeIcon() {
   );
 }
 
+function MoreIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="6" cy="12" r="1.8" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+      <circle cx="18" cy="12" r="1.8" fill="currentColor" />
+    </svg>
+  );
+}
+
 export default function App() {
   const [models, setModels] = useState<ModelPreset[]>([]);
   const [generations, setGenerations] = useState<Generation[]>([]);
@@ -327,6 +337,7 @@ export default function App() {
   const [librarySortMode, setLibrarySortMode] = useState<LibrarySortMode>('newest');
   const [isLibrarySortMenuOpen, setIsLibrarySortMenuOpen] = useState(false);
   const [selectedGenerationIds, setSelectedGenerationIds] = useState<string[]>([]);
+  const [openHistoryMenuId, setOpenHistoryMenuId] = useState<string | null>(null);
   const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
   const [isKeyMenuOpen, setIsKeyMenuOpen] = useState(false);
@@ -386,6 +397,7 @@ export default function App() {
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node | null;
+      const elementTarget = event.target as HTMLElement | null;
       if (languageMenuRef.current && target && !languageMenuRef.current.contains(target)) {
         setIsLanguageMenuOpen(false);
       }
@@ -397,6 +409,9 @@ export default function App() {
       }
       if (timeSignatureMenuRef.current && target && !timeSignatureMenuRef.current.contains(target)) {
         setIsTimeSignatureMenuOpen(false);
+      }
+      if (!elementTarget?.closest('.history-menu-wrap')) {
+        setOpenHistoryMenuId(null);
       }
     };
 
@@ -696,6 +711,7 @@ export default function App() {
 
   async function onDelete(id: string) {
     setError(null);
+    setOpenHistoryMenuId(null);
 
     const confirmed = window.confirm('Delete this generation and its local files?');
     if (!confirmed) {
@@ -763,6 +779,7 @@ export default function App() {
 
   async function onGenerateCover(id: string) {
     setError(null);
+    setOpenHistoryMenuId(null);
     setCoverRequestLoading(true);
 
     try {
@@ -963,6 +980,10 @@ export default function App() {
 
     setShouldAutoplayOnLoad(true);
     setActiveGenerationId(generationId);
+  }
+
+  function toggleHistoryMenu(generationId: string) {
+    setOpenHistoryMenuId((current) => (current === generationId ? null : generationId));
   }
 
   function onResizeStart(event: ReactPointerEvent<HTMLDivElement>) {
@@ -1519,6 +1540,71 @@ export default function App() {
                   <div className="history-right">
                     <span className={`mini-badge status-${generation.status}`}>{generation.status}</span>
                     <time>{formatTime(generation.created_at)}</time>
+                    <div className="history-menu-wrap">
+                      <button
+                        className="secondary-button history-menu-trigger"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleHistoryMenu(generation.id);
+                        }}
+                        aria-label="More actions"
+                        title="More actions"
+                        aria-expanded={openHistoryMenuId === generation.id}
+                      >
+                        <MoreIcon />
+                      </button>
+                      {openHistoryMenuId === generation.id ? (
+                        <div className="history-menu">
+                          <button
+                            type="button"
+                            className="history-menu-item"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void onGenerateCover(generation.id);
+                            }}
+                            disabled={coverRequestLoading || generation.cover_status === 'running' || generation.status !== 'completed'}
+                          >
+                            <CoverIcon />
+                            <span>Generate Cover</span>
+                          </button>
+                          {generation.output_audio_url ? (
+                            <a
+                              className="history-menu-item history-menu-link"
+                              href={generation.output_audio_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={() => setOpenHistoryMenuId(null)}
+                            >
+                              <OpenIcon />
+                              <span>Open Audio</span>
+                            </a>
+                          ) : null}
+                          {generation.output_audio_url ? (
+                            <a
+                              className="history-menu-item history-menu-link"
+                              href={generation.output_audio_url}
+                              download
+                              onClick={() => setOpenHistoryMenuId(null)}
+                            >
+                              <OpenIcon />
+                              <span>Download</span>
+                            </a>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="history-menu-item is-danger"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void onDelete(generation.id);
+                            }}
+                          >
+                            <DeleteIcon />
+                            <span>Delete</span>
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                   </button>
                 </div>
