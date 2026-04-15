@@ -9,8 +9,9 @@ Suno-style local music generation studio built with ComfyUI, ACE-Step 1.5, and O
 - ACE-Step 1.5 song generation with `Base`, `SFT`, and `Turbo`
 - Ollama-assisted generation for `Caption / Tags`, `Metadata`, `Lyrics`, and `Title`
 - genre-guided prompt generation
-- local history with playback
+- local library with playback, hover play, bulk delete, and per-song action menu
 - cover image generation through ComfyUI `flux2_klein`
+- clickable cover preview with lightbox view
 - local storage with SQLite, audio files, images, and metadata
 
 ## Requirements
@@ -34,8 +35,7 @@ VITE_API_PORT=8001
 COMFYUI_BASE_URL=http://127.0.0.1:8188
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=gemma4:e4b
-COMFYUI_POLL_TIMEOUT=900
-COMFYUI_POLL_INTERVAL=2.0
+OUTPUT_DIR=./storage/audio
 ```
 
 ## ComfyUI Setup
