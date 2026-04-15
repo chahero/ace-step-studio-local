@@ -472,17 +472,21 @@ export default function App() {
           </div>
 
           <div className="sidebar-actions">
-            <button className="secondary-button" type="button" onClick={onAssist} disabled={assistLoading}>
-              {assistLoading ? 'Refining...' : 'Refine Prompt'}
+            <button className={`secondary-button action-button ${assistLoading ? 'is-loading' : ''}`} type="button" onClick={onAssist} disabled={assistLoading}>
+              <span className="action-button-content">
+                <span className="action-button-label">{assistLoading ? 'Refining...' : 'Refine Prompt'}</span>
+                {assistLoading ? <span className="button-spinner" aria-hidden="true" /> : null}
+              </span>
             </button>
             <button
-              className="secondary-button idea-button"
+              className={`secondary-button idea-button ${ideaLoading ? 'is-loading' : ''}`}
               type="button"
               onClick={onGenerateIdea}
               disabled={ideaLoading}
               aria-label={ideaLoading ? 'Generating idea' : 'Generate idea'}
               title={ideaLoading ? 'Generating idea' : 'Generate idea'}
             >
+              {ideaLoading ? <span className="button-spinner idea-spinner" aria-hidden="true" /> : null}
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" className="idea-icon">
                 <rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" strokeWidth="1.7" />
                 <circle cx="8" cy="8" r="1.3" fill="currentColor" />

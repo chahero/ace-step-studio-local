@@ -12,6 +12,14 @@ def _normalize_text(value: str) -> str:
     return value.replace("\\r\\n", "\n").replace("\\n", "\n").strip()
 
 
+def _chat_timeout_seconds() -> float:
+    raw_value = os.getenv("OLLAMA_CHAT_TIMEOUT", "180")
+    try:
+        return max(30.0, float(raw_value))
+    except ValueError:
+        return 180.0
+
+
 def _extract_json_block(text: str) -> dict[str, object] | None:
     cleaned = text.strip()
     if cleaned.startswith("```"):
@@ -80,9 +88,67 @@ def _random_idea_fallback(prompt: str, lyrics: str) -> dict[str, str]:
     return base
 
 
+def _ollama_chat(base_url: str, request_body: dict[str, object]) -> str:
+    try:
+        timeout = httpx.Timeout(_chat_timeout_seconds(), connect=10.0)
+        response = httpx.post(f"{base_url.rstrip('/')}/api/chat", json=request_body, timeout=timeout)
+        response.raise_for_status()
+        return response.json().get("message", {}).get("content", "")
+    except httpx.HTTPStatusError as exc:
+        body = exc.response.text.strip()
+        status = exc.response.status_code
+        raise RuntimeError(
+            f"Ollama chat request failed with HTTP {status}: {body or exc.response.reason_phrase}"
+        ) from exc
+    except httpx.RequestError as exc:
+        raise RuntimeError(f"Ollama connection failed: {exc}") from exc
+
+
+def _repair_json_output(
+    *,
+    base_url: str,
+    model: str,
+    original_text: str,
+    required_keys: list[str],
+    description: str,
+) -> dict[str, object]:
+    repair_request = {
+        "model": model,
+        "format": "json",
+        "options": {
+            "temperature": 0.2,
+            "top_p": 0.8,
+        },
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "Return ONLY valid JSON. Do not add markdown, code fences, or extra text. "
+                    f"Return exactly these keys: {', '.join(required_keys)}."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"The previous response was invalid or incomplete for: {description}\n"
+                    f"Previous response:\n{original_text}\n"
+                    "Rewrite it as strict JSON."
+                ),
+            },
+        ],
+        "stream": False,
+    }
+
+    repaired = _ollama_chat(base_url, repair_request)
+    parsed = _extract_json_block(repaired)
+    if not isinstance(parsed, dict):
+        raise RuntimeError("Ollama returned an unexpected format. Ask it to return JSON and try again.")
+    return parsed
+
+
 def check_connection() -> dict[str, object]:
     base_url = os.getenv("OLLAMA_BASE_URL", "http://192.168.0.67:11434")
-    model = os.getenv("OLLAMA_MODEL", "llama3.1")
+    model = os.getenv("OLLAMA_MODEL", "gemma4:e4b")
 
     try:
         response = httpx.get(f"{base_url.rstrip('/')}/api/version", timeout=5.0)
@@ -104,7 +170,7 @@ def check_connection() -> dict[str, object]:
 
 def assist_prompt(payload: dict[str, object]) -> dict[str, str]:
     base_url = os.getenv("OLLAMA_BASE_URL", "http://192.168.0.67:11434")
-    model = os.getenv("OLLAMA_MODEL", "llama3.1")
+    model = os.getenv("OLLAMA_MODEL", "gemma4:e4b")
 
     prompt = str(payload.get("prompt", "")).strip()
     lyrics = str(payload.get("lyrics", "") or "").strip()
@@ -140,14 +206,7 @@ def assist_prompt(payload: dict[str, object]) -> dict[str, str]:
         "stream": False,
     }
 
-    try:
-        response = httpx.post(f"{base_url.rstrip('/')}/api/chat", json=request_body, timeout=60.0)
-        response.raise_for_status()
-        content = response.json().get("message", {}).get("content", "")
-    except Exception:
-        raise RuntimeError(
-            "Ollama is unavailable. Check the connection to 192.168.0.67:11434 and try again."
-        )
+    content = _ollama_chat(base_url, request_body)
 
     tags = "ambient, intimate, cinematic, warm, slow-burn"
     improved_lyrics = lyrics or "[Verse 1]\nA quiet room, a breathing light\nA soft refrain within the night"
@@ -160,16 +219,22 @@ def assist_prompt(payload: dict[str, object]) -> dict[str, str]:
             tags = _normalize_text(str(parsed.get("tags", tags)) or tags)
             improved_lyrics = _normalize_text(str(parsed.get("lyrics", improved_lyrics)) or improved_lyrics)
         else:
-            raise RuntimeError(
-                "Ollama returned an unexpected format. Ask it to return JSON and try again."
+            parsed = _repair_json_output(
+                base_url=base_url,
+                model=model,
+                original_text=text,
+                required_keys=["tags", "lyrics"],
+                description="prompt refinement output",
             )
+            tags = _normalize_text(str(parsed.get("tags", tags)) or tags)
+            improved_lyrics = _normalize_text(str(parsed.get("lyrics", improved_lyrics)) or improved_lyrics)
 
     return {"tags": _normalize_text(tags), "lyrics": _normalize_text(improved_lyrics)}
 
 
 def generate_prompt_idea(payload: dict[str, object]) -> dict[str, str]:
     base_url = os.getenv("OLLAMA_BASE_URL", "http://192.168.0.67:11434")
-    model = os.getenv("OLLAMA_MODEL", "llama3.1")
+    model = os.getenv("OLLAMA_MODEL", "gemma4:e4b")
 
     prompt = str(payload.get("prompt", "") or "").strip()
     lyrics = str(payload.get("lyrics", "") or "").strip()
@@ -210,14 +275,7 @@ def generate_prompt_idea(payload: dict[str, object]) -> dict[str, str]:
         "stream": False,
     }
 
-    try:
-        response = httpx.post(f"{base_url.rstrip('/')}/api/chat", json=request_body, timeout=60.0)
-        response.raise_for_status()
-        content = response.json().get("message", {}).get("content", "")
-    except Exception:
-        raise RuntimeError(
-            "Ollama is unavailable. Check the connection to 192.168.0.67:11434 and try again."
-        )
+    content = _ollama_chat(base_url, request_body)
 
     if content:
         text = str(content).strip()
@@ -230,7 +288,36 @@ def generate_prompt_idea(payload: dict[str, object]) -> dict[str, str]:
                 "lyrics": _normalize_text(str(parsed.get("lyrics", "")) or ""),
             }
             if not result["prompt"] or not result["tags"] or not result["lyrics"]:
-                raise RuntimeError("Ollama returned incomplete JSON. Try again.")
+                parsed = _repair_json_output(
+                    base_url=base_url,
+                    model=model,
+                    original_text=text,
+                    required_keys=["prompt", "tags", "lyrics"],
+                    description="random idea generation output",
+                )
+                result = {
+                    "prompt": _normalize_text(str(parsed.get("prompt", prompt or "")) or prompt or ""),
+                    "tags": _normalize_text(str(parsed.get("tags", "")) or ""),
+                    "lyrics": _normalize_text(str(parsed.get("lyrics", "")) or ""),
+                }
+                if not result["prompt"] or not result["tags"] or not result["lyrics"]:
+                    raise RuntimeError("Ollama returned incomplete JSON. Try again.")
             return result
 
-        raise RuntimeError("Ollama returned an unexpected format. Ask it to return JSON and try again.")
+        parsed = _repair_json_output(
+            base_url=base_url,
+            model=model,
+            original_text=text,
+            required_keys=["prompt", "tags", "lyrics"],
+            description="random idea generation output",
+        )
+        result = {
+            "prompt": _normalize_text(str(parsed.get("prompt", prompt or "")) or prompt or ""),
+            "tags": _normalize_text(str(parsed.get("tags", "")) or ""),
+            "lyrics": _normalize_text(str(parsed.get("lyrics", "")) or ""),
+        }
+        if not result["prompt"] or not result["tags"] or not result["lyrics"]:
+            raise RuntimeError("Ollama returned incomplete JSON. Try again.")
+        return result
+
+    raise RuntimeError("Ollama returned an unexpected format. Ask it to return JSON and try again.")
