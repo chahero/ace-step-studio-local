@@ -60,6 +60,12 @@ export async function deleteGeneration(id: string): Promise<{ deleted: true; id:
   });
 }
 
+export async function generateCover(id: string): Promise<Generation> {
+  return requestJSON<Generation>(`/generations/${id}/cover`, {
+    method: 'POST',
+  });
+}
+
 export async function assistPrompt(input: Record<string, unknown>): Promise<PromptAssistResponse> {
   return requestJSON<PromptAssistResponse>('/prompt/assist', {
     method: 'POST',

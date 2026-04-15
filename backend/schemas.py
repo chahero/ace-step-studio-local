@@ -54,3 +54,11 @@ class PromptTitleRequest(BaseModel):
     lyrics: str | None = None
     metadata: dict[str, object] | None = None
     genre_category: str | None = None
+
+
+class PromptCoverRequest(BaseModel):
+    title: str | None = None
+    prompt: str
+    lyrics: str | None = None
+    metadata: dict[str, object] | None = None
+    genre_category: str | None = None

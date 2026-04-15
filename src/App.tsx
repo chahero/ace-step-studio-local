@@ -4,6 +4,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react';
 import {
   createGeneration,
   deleteGeneration,
+  generateCover,
   generatePromptIdea,
   generatePromptLyrics,
   generatePromptMetadata,
@@ -272,6 +273,16 @@ function DeleteIcon() {
   );
 }
 
+function CoverIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 6h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z" />
+      <path d="m8 15 2.5-2.8 2.2 2.2 1.8-1.7L17 15" />
+      <path d="M9 10h.01" />
+    </svg>
+  );
+}
+
 export default function App() {
   const [models, setModels] = useState<ModelPreset[]>([]);
   const [generations, setGenerations] = useState<Generation[]>([]);
@@ -281,6 +292,7 @@ export default function App() {
   const [lyricsLoading, setLyricsLoading] = useState(false);
   const [metadataLoading, setMetadataLoading] = useState(false);
   const [randomizeLoading, setRandomizeLoading] = useState(false);
+  const [coverRequestLoading, setCoverRequestLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isCaptionFocused, setIsCaptionFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -647,6 +659,24 @@ export default function App() {
     }
   }
 
+  async function onGenerateCover(id: string) {
+    setError(null);
+    setCoverRequestLoading(true);
+
+    try {
+      await generateCover(id);
+      await refreshGenerations();
+      if (activeGenerationId !== id) {
+        setActiveGenerationId(id);
+      }
+      setIsDetailPanelOpen(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Cover generation failed');
+    } finally {
+      setCoverRequestLoading(false);
+    }
+  }
+
   function applyPreset(presetId: keyof typeof presetLibrary) {
     const preset = presetLibrary[presetId];
     setForm((current) => ({
@@ -690,6 +720,14 @@ export default function App() {
 
   function getAudioUrl(generation?: Generation | null) {
     return generation?.output_audio_url ?? null;
+  }
+
+  function renderArtwork(generation?: Generation | null, className = '') {
+    const coverImageUrl = generation?.cover_image_url ?? null;
+    if (coverImageUrl) {
+      return <img className={className} src={coverImageUrl} alt={generation?.title ?? generation?.prompt ?? 'Cover image'} />;
+    }
+    return <div className={className} aria-hidden="true" />;
   }
 
   const currentAudioUrl = getAudioUrl(activeGeneration);
@@ -1273,7 +1311,7 @@ export default function App() {
                   }}
                 >
                   <div className="history-left">
-                    <div className="library-thumb" />
+                    {renderArtwork(generation, 'library-thumb')}
                     <div className="history-copy">
                 <strong>{generation.title ?? generation.prompt}</strong>
                 <span className="history-description">
@@ -1311,7 +1349,7 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="detail-art" />
+              {renderArtwork(activeGeneration, 'detail-art')}
 
               <div className="detail-meta-row">
                 <span>{activeGeneration.model_preset_id}</span>
@@ -1321,6 +1359,20 @@ export default function App() {
               </div>
 
               <div className="detail-actions">
+                <button
+                  className="secondary-button detail-action detail-icon-button"
+                  type="button"
+                  onClick={() => onGenerateCover(activeGeneration.id)}
+                  aria-label="Generate cover"
+                  title="Generate cover"
+                  disabled={coverRequestLoading || activeGeneration.cover_status === 'running' || activeGeneration.status !== 'completed'}
+                >
+                  {coverRequestLoading || activeGeneration.cover_status === 'running' ? (
+                    <span className="button-spinner" aria-hidden="true" />
+                  ) : (
+                    <CoverIcon />
+                  )}
+                </button>
                 {getAudioUrl(activeGeneration) ? (
                   <a
                     className="secondary-button link-button detail-action detail-icon-button"
@@ -1358,10 +1410,24 @@ export default function App() {
                 <div className="detail-text">{activeGeneration.tags || 'No tags'}</div>
               </div>
 
+              {activeGeneration.cover_prompt ? (
+                <div className="detail-block">
+                  <div className="detail-block-title">Cover concept</div>
+                  <div className="detail-text">{activeGeneration.cover_prompt}</div>
+                </div>
+              ) : null}
+
               <div className="detail-block">
                 <div className="detail-block-title">Lyrics</div>
                 <div className="detail-lyrics">{activeGeneration.lyrics?.trim() || 'No lyrics provided.'}</div>
               </div>
+
+              {activeGeneration.cover_error_message ? (
+                <div className="detail-block">
+                  <div className="detail-block-title">Cover error</div>
+                  <div className="detail-text error-text">{activeGeneration.cover_error_message}</div>
+                </div>
+              ) : null}
 
               {activeGeneration.error_message ? (
                 <div className="detail-block">
@@ -1384,7 +1450,7 @@ export default function App() {
           />
 
           <div className="player-main">
-            <div className="player-art" />
+            {renderArtwork(activeGeneration, 'player-art')}
             <div className="player-copy">
               <strong>{currentTitle}</strong>
               <span>{currentMeta}</span>

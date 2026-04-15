@@ -15,11 +15,13 @@ from backend.db import (
     init_db,
     insert_generation,
     mark_generation_retry,
+    update_generation_cover,
     update_generation_status,
 )
 from backend.schemas import (
     GenerationCreate,
     PromptAssistRequest,
+    PromptCoverRequest,
     PromptIdeaRequest,
     PromptLyricsRequest,
     PromptMetadataRequest,
@@ -159,6 +161,37 @@ def suggest_prompt_title(payload: PromptTitleRequest) -> dict[str, str]:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
+@app.post("/api/prompt/cover")
+def suggest_prompt_cover(payload: PromptCoverRequest) -> dict[str, str]:
+    try:
+        return ollama.suggest_cover_prompt(payload.model_dump())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/api/generations/{generation_id}/cover")
+def generate_cover(generation_id: str, background_tasks: BackgroundTasks) -> dict[str, object]:
+    generation = fetch_generation(generation_id)
+    if generation is None:
+        raise HTTPException(status_code=404, detail="Generation not found")
+    if generation["status"] != "completed":
+        raise HTTPException(status_code=409, detail="Generate the song first before creating a cover")
+    if generation.get("cover_status") == "running":
+        raise HTTPException(status_code=409, detail="Cover generation is already running")
+
+    update_generation_cover(
+        generation_id,
+        cover_status="running",
+        cover_image_path=generation.get("cover_image_path"),
+        cover_prompt=generation.get("cover_prompt"),
+        cover_negative_prompt=generation.get("cover_negative_prompt"),
+        cover_error_message=None,
+    )
+    background_tasks.add_task(run_cover_job, generation_id)
+    refreshed = fetch_generation(generation_id)
+    return refreshed if refreshed is not None else {"id": generation_id, "cover_status": "running"}
+
+
 def run_generation_job(generation_id: str) -> None:
     generation = fetch_generation(generation_id)
     if generation is None:
@@ -180,3 +213,48 @@ def run_generation_job(generation_id: str) -> None:
         )
     except Exception as exc:  # pragma: no cover - background execution safety
         update_generation_status(generation_id, "failed", error_message=str(exc))
+
+
+def run_cover_job(generation_id: str) -> None:
+    generation = fetch_generation(generation_id)
+    if generation is None:
+        return
+
+    try:
+        metadata = {
+            "bpm": generation.get("bpm"),
+            "duration": generation.get("duration"),
+            "timesignature": generation.get("timesignature"),
+            "language": generation.get("language"),
+            "keyscale": generation.get("keyscale"),
+            "seed": generation.get("seed"),
+            "temperature": generation.get("temperature"),
+            "cfg_scale": generation.get("cfg_scale"),
+        }
+        prompt_payload = {
+            "title": generation.get("title"),
+            "prompt": generation.get("prompt"),
+            "lyrics": generation.get("lyrics"),
+            "metadata": metadata,
+            "genre_category": generation.get("genre_category"),
+        }
+        cover_prompt = ollama.suggest_cover_prompt(prompt_payload)
+        result = comfyui.run_cover_generation(
+            generation=generation,
+            prompt_text=cover_prompt["prompt"],
+            negative_prompt=cover_prompt["negative_prompt"],
+        )
+        update_generation_cover(
+            generation_id,
+            cover_status="completed",
+            cover_image_path=result.get("cover_image_path"),
+            cover_prompt=cover_prompt["prompt"],
+            cover_negative_prompt=cover_prompt["negative_prompt"],
+            cover_error_message=None,
+        )
+    except Exception as exc:  # pragma: no cover - background execution safety
+        update_generation_cover(
+            generation_id,
+            cover_status="failed",
+            cover_error_message=str(exc),
+        )

@@ -622,3 +622,79 @@ def suggest_title(payload: dict[str, object]) -> dict[str, str]:
         raise RuntimeError("Ollama returned incomplete JSON. Try again.")
 
     return {"title": title}
+
+
+def suggest_cover_prompt(payload: dict[str, object]) -> dict[str, str]:
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://192.168.0.67:11434")
+    model = os.getenv("OLLAMA_MODEL", "gemma4:e4b")
+
+    title = str(payload.get("title", "") or "").strip()
+    prompt = str(payload.get("prompt", "") or "").strip()
+    lyrics = str(payload.get("lyrics", "") or "").strip()
+    metadata = payload.get("metadata")
+    genre_category = str(payload.get("genre_category", "") or "").strip()
+    genre_instruction = _genre_instruction(genre_category)
+    metadata_text = json.dumps(metadata, ensure_ascii=False) if isinstance(metadata, dict) else ""
+
+    request_body = {
+        "model": model,
+        "format": "json",
+        "options": {
+            "temperature": 0.75,
+            "top_p": 0.92,
+            "top_k": 40,
+        },
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You write album-cover image prompts for a text-to-image model. "
+                    "Return ONLY valid JSON with exactly two keys: prompt and negative_prompt. "
+                    "prompt should describe one strong square cover image concept with clear visual direction. "
+                    "negative_prompt should be concise and practical."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Title: {title or 'untitled'}\n"
+                    f"Caption / tags: {prompt}\n"
+                    f"Lyrics: {lyrics}\n"
+                    f"Genre category: {genre_category or 'unspecified'}\n"
+                    f"Genre instruction: {genre_instruction}\n"
+                    f"Metadata: {metadata_text}\n"
+                    "Create a square album cover concept that fits the song. "
+                    "Prefer one clean scene or one strong symbolic composition. "
+                    "Avoid readable text in the image."
+                ),
+            },
+        ],
+        "stream": False,
+    }
+
+    content = _ollama_chat(base_url, request_body)
+    if not content:
+        raise RuntimeError("Ollama returned incomplete JSON. Try again.")
+
+    text = str(content).strip()
+    parsed = _extract_json_block(text)
+    if not isinstance(parsed, dict):
+        parsed = _repair_json_output(
+            base_url=base_url,
+            model=model,
+            original_text=text,
+            required_keys=["prompt", "negative_prompt"],
+            description="cover prompt output",
+        )
+
+    prompt_text = _normalize_text(str(parsed.get("prompt", "")) or "")
+    negative_prompt = _normalize_text(
+        str(parsed.get("negative_prompt", "")) or "blurry, low quality, deformed, watermark, readable text, logo"
+    )
+    if not prompt_text:
+        raise RuntimeError("Ollama returned incomplete JSON. Try again.")
+
+    return {
+        "prompt": prompt_text,
+        "negative_prompt": negative_prompt,
+    }

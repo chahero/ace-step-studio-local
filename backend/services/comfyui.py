@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from backend.services.storage import AUDIO_DIR, METADATA_DIR
+from backend.services.storage import AUDIO_DIR, IMAGE_DIR, METADATA_DIR
 
 WORKFLOW_NODE_MAP = {
     "tags": ("94", "tags"),
@@ -27,6 +27,16 @@ WORKFLOW_NODE_MAP = {
     "top_k": ("94", "top_k"),
     "min_p": ("94", "min_p"),
     "model_path": ("104", "unet_name"),
+}
+
+IMAGE_WORKFLOW_FILE = "workflow/image_flux2_klein_text_to_image.json"
+IMAGE_WORKFLOW_NODE_MAP = {
+    "filename_prefix": ("9", "filename_prefix"),
+    "prompt_text": ("76", "value"),
+    "negative_prompt": ("75:67", "text"),
+    "width": ("75:68", "value"),
+    "height": ("75:69", "value"),
+    "noise_seed": ("75:73", "noise_seed"),
 }
 
 
@@ -191,6 +201,40 @@ def _download_output_file(file_info: dict[str, Any], destination: str) -> None:
         handle.write(response.content)
 
 
+def _resolve_output_extension(file_info: dict[str, Any], default: str = ".png") -> str:
+    filename = str(file_info.get("filename") or "").strip()
+    suffix = os.path.splitext(filename)[1].lower()
+    if suffix:
+        return suffix
+    return default
+
+
+def patch_image_workflow(
+    workflow: dict[str, Any],
+    *,
+    generation_id: str,
+    prompt_text: str,
+    negative_prompt: str,
+    seed: int,
+    width: int = 1024,
+    height: int = 1024,
+) -> dict[str, Any]:
+    patched = json.loads(json.dumps(workflow))
+    payload = {
+        "filename_prefix": f"cover-{generation_id}",
+        "prompt_text": prompt_text,
+        "negative_prompt": negative_prompt,
+        "width": width,
+        "height": height,
+        "noise_seed": seed,
+    }
+
+    for key, (node_id, input_key) in IMAGE_WORKFLOW_NODE_MAP.items():
+        if node_id in patched:
+            patched[node_id]["inputs"][input_key] = payload[key]
+    return patched
+
+
 def run_generation(*, generation: dict[str, Any], workflow_file: str) -> dict[str, str]:
     workflow = load_workflow(workflow_file)
     patched = patch_workflow(workflow, generation, workflow_file)
@@ -242,3 +286,77 @@ def run_generation(*, generation: dict[str, Any], workflow_file: str) -> dict[st
     )
 
     return {"prompt_id": prompt_id, "output_audio_path": str(output_audio_path), "workflow_path": str(workflow_snapshot)}
+
+
+def run_cover_generation(
+    *,
+    generation: dict[str, Any],
+    prompt_text: str,
+    negative_prompt: str,
+    width: int = 1024,
+    height: int = 1024,
+) -> dict[str, str]:
+    workflow = load_workflow(IMAGE_WORKFLOW_FILE)
+    patched = patch_image_workflow(
+        workflow,
+        generation_id=str(generation["id"]),
+        prompt_text=prompt_text,
+        negative_prompt=negative_prompt,
+        seed=int(generation.get("seed") or 0),
+        width=width,
+        height=height,
+    )
+
+    workflow_snapshot = METADATA_DIR / f"{generation['id']}.cover.workflow.json"
+    workflow_snapshot.write_text(json.dumps(patched, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    prompt_id = submit_workflow(patched)
+    poll_timeout_seconds = int(os.getenv("COMFYUI_POLL_TIMEOUT", "900"))
+    poll_interval_seconds = float(os.getenv("COMFYUI_POLL_INTERVAL", "2.0"))
+    deadline = time.monotonic() + poll_timeout_seconds
+
+    history_payload: dict[str, Any] | None = None
+    output_file: dict[str, Any] | None = None
+    while time.monotonic() < deadline:
+        history_payload = fetch_history(prompt_id)
+        if history_payload:
+            output_file = _extract_output_file_info(history_payload, prompt_id)
+            if output_file is not None:
+                break
+        time.sleep(poll_interval_seconds)
+
+    if not history_payload:
+        raise RuntimeError(f"Timed out waiting for ComfyUI image prompt {prompt_id}")
+    if output_file is None:
+        raise RuntimeError(f"ComfyUI completed image prompt {prompt_id} but no output file was found")
+
+    extension = _resolve_output_extension(output_file, ".png")
+    output_image_path = IMAGE_DIR / f"{generation['id']}{extension}"
+    _download_output_file(output_file, str(output_image_path))
+
+    if not output_image_path.exists() or output_image_path.stat().st_size == 0:
+        raise RuntimeError(f"ComfyUI image output file is empty: {output_image_path}")
+
+    metadata_path = METADATA_DIR / f"{generation['id']}.cover.json"
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "generation_id": generation["id"],
+                "prompt_id": prompt_id,
+                "workflow_file": IMAGE_WORKFLOW_FILE,
+                "prompt": prompt_text,
+                "negative_prompt": negative_prompt,
+                "output_image_path": str(output_image_path),
+                "history": history_payload,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    return {
+        "prompt_id": prompt_id,
+        "cover_image_path": str(output_image_path),
+        "workflow_path": str(workflow_snapshot),
+    }

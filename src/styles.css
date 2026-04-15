@@ -948,6 +948,8 @@ label,
   width: 34px;
   height: 34px;
   border-radius: 11px;
+  display: block;
+  object-fit: cover;
   background:
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.4), transparent 25%),
     linear-gradient(135deg, rgba(143, 124, 255, 0.9), rgba(66, 214, 197, 0.8));
@@ -1055,6 +1057,8 @@ label,
   width: 28px;
   height: 28px;
   border-radius: 10px;
+  display: block;
+  object-fit: cover;
   background:
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.42), transparent 25%),
     linear-gradient(135deg, rgba(143, 124, 255, 0.95), rgba(66, 214, 197, 0.85));
@@ -1293,6 +1297,8 @@ label,
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 22px;
+  display: block;
+  object-fit: cover;
   background:
     radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.42), transparent 24%),
     linear-gradient(135deg, rgba(143, 124, 255, 0.95), rgba(66, 214, 197, 0.82));

@@ -59,6 +59,11 @@ def init_db() -> None:
               cfg_scale REAL,
               status TEXT NOT NULL,
               output_audio_path TEXT,
+              cover_image_path TEXT,
+              cover_prompt TEXT,
+              cover_negative_prompt TEXT,
+              cover_status TEXT,
+              cover_error_message TEXT,
               workflow_path TEXT,
               error_message TEXT,
               comfyui_prompt_id TEXT,
@@ -76,6 +81,16 @@ def init_db() -> None:
         generation_columns = {row["name"] for row in conn.execute("PRAGMA table_info(generations)").fetchall()}
         if "title" not in generation_columns:
             conn.execute("ALTER TABLE generations ADD COLUMN title TEXT")
+        if "cover_image_path" not in generation_columns:
+            conn.execute("ALTER TABLE generations ADD COLUMN cover_image_path TEXT")
+        if "cover_prompt" not in generation_columns:
+            conn.execute("ALTER TABLE generations ADD COLUMN cover_prompt TEXT")
+        if "cover_negative_prompt" not in generation_columns:
+            conn.execute("ALTER TABLE generations ADD COLUMN cover_negative_prompt TEXT")
+        if "cover_status" not in generation_columns:
+            conn.execute("ALTER TABLE generations ADD COLUMN cover_status TEXT")
+        if "cover_error_message" not in generation_columns:
+            conn.execute("ALTER TABLE generations ADD COLUMN cover_error_message TEXT")
         seed_model_presets(conn)
 
 
@@ -108,18 +123,30 @@ def row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
 
 def enrich_generation(record: dict[str, Any]) -> dict[str, Any]:
     output_path = record.get("output_audio_path")
+    cover_image_path = record.get("cover_image_path")
     if not output_path:
         record["output_audio_url"] = None
         record["output_audio_size"] = None
-        return record
-
-    path = DATA_DIR.parent / str(output_path)
-    if path.exists() and path.stat().st_size > 0:
-        record["output_audio_url"] = f"http://127.0.0.1:8001/files/audio/{path.name}"
-        record["output_audio_size"] = path.stat().st_size
     else:
-        record["output_audio_url"] = None
-        record["output_audio_size"] = path.stat().st_size if path.exists() else None
+        path = DATA_DIR.parent / str(output_path)
+        if path.exists() and path.stat().st_size > 0:
+            record["output_audio_url"] = f"http://127.0.0.1:8001/files/audio/{path.name}"
+            record["output_audio_size"] = path.stat().st_size
+        else:
+            record["output_audio_url"] = None
+            record["output_audio_size"] = path.stat().st_size if path.exists() else None
+
+    if not cover_image_path:
+        record["cover_image_url"] = None
+        record["cover_image_size"] = None
+    else:
+        cover_path = DATA_DIR.parent / str(cover_image_path)
+        if cover_path.exists() and cover_path.stat().st_size > 0:
+            record["cover_image_url"] = f"http://127.0.0.1:8001/files/images/{cover_path.name}"
+            record["cover_image_size"] = cover_path.stat().st_size
+        else:
+            record["cover_image_url"] = None
+            record["cover_image_size"] = cover_path.stat().st_size if cover_path.exists() else None
     return record
 
 
@@ -163,6 +190,11 @@ def insert_generation(payload: dict[str, Any]) -> dict[str, Any]:
         "cfg_scale": payload.get("cfg_scale"),
         "status": "queued",
         "output_audio_path": None,
+        "cover_image_path": None,
+        "cover_prompt": None,
+        "cover_negative_prompt": None,
+        "cover_status": None,
+        "cover_error_message": None,
         "workflow_path": None,
         "error_message": None,
         "comfyui_prompt_id": None,
@@ -176,10 +208,12 @@ def insert_generation(payload: dict[str, Any]) -> dict[str, Any]:
             INSERT INTO generations (
               id, project_id, model_preset_id, title, prompt, lyrics, tags, bpm, duration, timesignature,
               language, keyscale, seed, temperature, cfg_scale, status, output_audio_path,
+              cover_image_path, cover_prompt, cover_negative_prompt, cover_status, cover_error_message,
               workflow_path, error_message, comfyui_prompt_id, created_at, updated_at
             ) VALUES (
               :id, :project_id, :model_preset_id, :title, :prompt, :lyrics, :tags, :bpm, :duration, :timesignature,
               :language, :keyscale, :seed, :temperature, :cfg_scale, :status, :output_audio_path,
+              :cover_image_path, :cover_prompt, :cover_negative_prompt, :cover_status, :cover_error_message,
               :workflow_path, :error_message, :comfyui_prompt_id, :created_at, :updated_at
             )
             """,
@@ -232,3 +266,32 @@ def delete_generation(generation_id: str) -> bool:
         cursor = conn.execute("DELETE FROM generations WHERE id = ?", (generation_id,))
         conn.commit()
         return cursor.rowcount > 0
+
+
+def update_generation_cover(
+    generation_id: str,
+    *,
+    cover_status: str | None = None,
+    cover_image_path: str | None = None,
+    cover_prompt: str | None = None,
+    cover_negative_prompt: str | None = None,
+    cover_error_message: str | None = None,
+) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE generations
+            SET cover_status = ?, cover_image_path = ?, cover_prompt = ?, cover_negative_prompt = ?, cover_error_message = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                cover_status,
+                cover_image_path,
+                cover_prompt,
+                cover_negative_prompt,
+                cover_error_message,
+                now_iso(),
+                generation_id,
+            ),
+        )
+        conn.commit()

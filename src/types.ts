@@ -26,6 +26,13 @@ export type Generation = {
   output_audio_path?: string | null;
   output_audio_url?: string | null;
   output_audio_size?: number | null;
+  cover_image_path?: string | null;
+  cover_image_url?: string | null;
+  cover_image_size?: number | null;
+  cover_prompt?: string | null;
+  cover_negative_prompt?: string | null;
+  cover_status?: 'running' | 'completed' | 'failed' | null;
+  cover_error_message?: string | null;
   workflow_path?: string | null;
   error_message?: string | null;
   comfyui_prompt_id?: string | null;
