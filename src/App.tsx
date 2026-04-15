@@ -239,6 +239,27 @@ function OpenIcon() {
   );
 }
 
+function RetryIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20 11a8 8 0 1 0 2.2 5.5" />
+      <path d="M20 4v7h-7" />
+    </svg>
+  );
+}
+
+function DeleteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7h16" />
+      <path d="M9 7V5h6v2" />
+      <path d="M8 7l1 12h6l1-12" />
+      <path d="M10 11v5" />
+      <path d="M14 11v5" />
+    </svg>
+  );
+}
+
 export default function App() {
   const [models, setModels] = useState<ModelPreset[]>([]);
   const [generations, setGenerations] = useState<Generation[]>([]);
@@ -1263,15 +1284,34 @@ export default function App() {
 
               <div className="detail-actions">
                 {getAudioUrl(activeGeneration) ? (
-                  <a className="secondary-button link-button detail-action" href={getAudioUrl(activeGeneration) ?? '#'} target="_blank" rel="noreferrer">
-                    Open audio
+                  <a
+                    className="secondary-button link-button detail-action detail-icon-button"
+                    href={getAudioUrl(activeGeneration) ?? '#'}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Open audio"
+                    title="Open audio"
+                  >
+                    <OpenIcon />
                   </a>
                 ) : null}
-                <button className="secondary-button detail-action" type="button" onClick={() => onRetry(activeGeneration.id)}>
-                  Retry
+                <button
+                  className="secondary-button detail-action detail-icon-button"
+                  type="button"
+                  onClick={() => onRetry(activeGeneration.id)}
+                  aria-label="Retry generation"
+                  title="Retry generation"
+                >
+                  <RetryIcon />
                 </button>
-                <button className="secondary-button detail-action danger-action" type="button" onClick={() => onDelete(activeGeneration.id)}>
-                  Delete
+                <button
+                  className="secondary-button detail-action detail-icon-button danger-action"
+                  type="button"
+                  onClick={() => onDelete(activeGeneration.id)}
+                  aria-label="Delete generation"
+                  title="Delete generation"
+                >
+                  <DeleteIcon />
                 </button>
               </div>
 
