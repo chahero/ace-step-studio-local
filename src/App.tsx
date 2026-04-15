@@ -332,6 +332,8 @@ export default function App() {
   const [isTimeSignatureMenuOpen, setIsTimeSignatureMenuOpen] = useState(false);
   const [playerCurrentTime, setPlayerCurrentTime] = useState(0);
   const [playerDuration, setPlayerDuration] = useState(0);
+  const [lightboxImageUrl, setLightboxImageUrl] = useState<string | null>(null);
+  const [lightboxTitle, setLightboxTitle] = useState('');
   const dragState = useRef<{ startX: number; startWidth: number } | null>(null);
   const languageMenuRef = useRef<HTMLDivElement | null>(null);
   const keyMenuRef = useRef<HTMLDivElement | null>(null);
@@ -399,6 +401,22 @@ export default function App() {
     document.addEventListener('pointerdown', handlePointerDown);
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, []);
+
+  useEffect(() => {
+    if (!lightboxImageUrl) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setLightboxImageUrl(null);
+        setLightboxTitle('');
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxImageUrl]);
 
   const activeGeneration = useMemo(
     () => generations.find((generation) => generation.id === activeGenerationId) ?? generations[0] ?? null,
@@ -751,6 +769,11 @@ export default function App() {
       return <img className={className} src={coverImageUrl} alt={generation?.title ?? generation?.prompt ?? 'Cover image'} />;
     }
     return <div className={className} aria-hidden="true" />;
+  }
+
+  function openLightbox(imageUrl: string, title: string) {
+    setLightboxImageUrl(imageUrl);
+    setLightboxTitle(title);
   }
 
   const currentAudioUrl = getAudioUrl(activeGeneration);
@@ -1397,7 +1420,19 @@ export default function App() {
                 </button>
               </div>
 
-              {renderArtwork(activeGeneration, 'detail-art')}
+              {activeGeneration.cover_image_url ? (
+                <button
+                  className="detail-art-button"
+                  type="button"
+                  onClick={() => openLightbox(activeGeneration.cover_image_url!, activeGeneration.title ?? activeGeneration.prompt)}
+                  aria-label="Open cover image"
+                  title="Open cover image"
+                >
+                  {renderArtwork(activeGeneration, 'detail-art')}
+                </button>
+              ) : (
+                renderArtwork(activeGeneration, 'detail-art')
+              )}
 
               <div className="detail-meta-row">
                 <span>{activeGeneration.model_preset_id}</span>
@@ -1593,6 +1628,28 @@ export default function App() {
             ) : null}
           </div>
         </footer>
+        {lightboxImageUrl ? (
+          <div className="image-lightbox" role="dialog" aria-modal="true" aria-label="Expanded cover image" onClick={() => {
+            setLightboxImageUrl(null);
+            setLightboxTitle('');
+          }}>
+            <div className="image-lightbox-content" onClick={(event) => event.stopPropagation()}>
+              <button
+                className="image-lightbox-close"
+                type="button"
+                onClick={() => {
+                  setLightboxImageUrl(null);
+                  setLightboxTitle('');
+                }}
+                aria-label="Close image"
+              >
+                ×
+              </button>
+              <img className="image-lightbox-image" src={lightboxImageUrl} alt={lightboxTitle || 'Expanded cover image'} />
+              {lightboxTitle ? <div className="image-lightbox-title">{lightboxTitle}</div> : null}
+            </div>
+          </div>
+        ) : null}
       </main>
     </div>
   );
