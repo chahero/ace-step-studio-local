@@ -45,6 +45,12 @@ export async function retryGeneration(id: string): Promise<Generation> {
   });
 }
 
+export async function deleteGeneration(id: string): Promise<{ deleted: true; id: string }> {
+  return requestJSON<{ deleted: true; id: string }>(`/generations/${id}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function assistPrompt(input: Record<string, unknown>): Promise<PromptAssistResponse> {
   return requestJSON<PromptAssistResponse>('/prompt/assist', {
     method: 'POST',

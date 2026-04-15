@@ -122,6 +122,16 @@ def _find_output_file_info(payload: Any) -> dict[str, Any] | None:
     return None
 
 
+def _extract_output_file_info(history_payload: dict[str, Any], prompt_id: str) -> dict[str, Any] | None:
+    outputs = history_payload.get(prompt_id)
+    if not isinstance(outputs, dict):
+        if "outputs" in history_payload and isinstance(history_payload["outputs"], dict):
+            outputs = history_payload["outputs"]
+        else:
+            outputs = {}
+    return _find_output_file_info(outputs)
+
+
 def _download_output_file(file_info: dict[str, Any], destination: str) -> None:
     base_url = os.getenv("COMFYUI_BASE_URL", "http://192.168.0.67:8188").rstrip("/")
     filename = file_info.get("filename")
@@ -173,24 +183,19 @@ def run_generation(*, generation: dict[str, Any], workflow_file: str) -> dict[st
     deadline = time.monotonic() + poll_timeout_seconds
 
     history_payload: dict[str, Any] | None = None
+    output_file: dict[str, Any] | None = None
     while time.monotonic() < deadline:
         history_payload = fetch_history(prompt_id)
         if history_payload:
-            break
+            output_file = _extract_output_file_info(history_payload, prompt_id)
+            if output_file is not None:
+                break
         time.sleep(poll_interval_seconds)
 
     if not history_payload:
         raise RuntimeError(f"Timed out waiting for ComfyUI prompt {prompt_id}")
 
-    outputs = history_payload.get(prompt_id)
-    if not isinstance(outputs, dict):
-        if "outputs" in history_payload and isinstance(history_payload["outputs"], dict):
-            outputs = history_payload["outputs"]
-        else:
-            outputs = {}
-
-    output_file = _find_output_file_info(outputs)
-    if output_file:
+    if output_file is not None:
         _download_output_file(output_file, str(output_audio_path))
     else:
         raise RuntimeError(f"ComfyUI completed prompt {prompt_id} but no output file was found")

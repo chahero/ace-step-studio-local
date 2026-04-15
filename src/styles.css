@@ -668,6 +668,17 @@ label,
   width: fit-content;
 }
 
+.danger-action {
+  color: #ffd7dd;
+  border-color: rgba(240, 95, 115, 0.35);
+  background: rgba(240, 95, 115, 0.08);
+}
+
+.danger-action:hover {
+  border-color: rgba(240, 95, 115, 0.6);
+  background: rgba(240, 95, 115, 0.14);
+}
+
 .history-list {
   display: grid;
   gap: 6px;

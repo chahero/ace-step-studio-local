@@ -220,3 +220,10 @@ def mark_generation_retry(generation_id: str) -> dict[str, Any] | None:
         comfyui_prompt_id=None,
     )
     return fetch_generation(generation_id)
+
+
+def delete_generation(generation_id: str) -> bool:
+    with get_connection() as conn:
+        cursor = conn.execute("DELETE FROM generations WHERE id = ?", (generation_id,))
+        conn.commit()
+        return cursor.rowcount > 0

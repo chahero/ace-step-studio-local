@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend.db import (
+    delete_generation,
     fetch_generation,
     fetch_generations,
     fetch_model_presets,
@@ -95,6 +96,20 @@ def retry_generation(generation_id: str, background_tasks: BackgroundTasks) -> d
         raise HTTPException(status_code=404, detail="Generation not found")
     background_tasks.add_task(run_generation_job, generation["id"])
     return generation
+
+
+@app.delete("/api/generations/{generation_id}")
+def remove_generation(generation_id: str) -> dict[str, object]:
+    generation = fetch_generation(generation_id)
+    if generation is None:
+        raise HTTPException(status_code=404, detail="Generation not found")
+    if generation["status"] == "running":
+        raise HTTPException(status_code=409, detail="Cannot delete a generation while it is running")
+
+    storage.delete_generation_assets(generation)
+    if not delete_generation(generation_id):
+        raise HTTPException(status_code=404, detail="Generation not found")
+    return {"deleted": True, "id": generation_id}
 
 
 @app.post("/api/prompt/assist")

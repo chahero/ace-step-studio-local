@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { assistPrompt, createGeneration, generatePromptIdea, loadGenerations, loadModels, retryGeneration } from './api';
+import { assistPrompt, createGeneration, deleteGeneration, generatePromptIdea, loadGenerations, loadModels, retryGeneration } from './api';
 import type { Generation, ModelPreset } from './types';
 
 const defaultForm = {
@@ -297,6 +297,26 @@ export default function App() {
       await refreshGenerations();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Retry failed');
+    }
+  }
+
+  async function onDelete(id: string) {
+    setError(null);
+
+    const confirmed = window.confirm('Delete this generation and its local files?');
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteGeneration(id);
+      if (activeGenerationId === id) {
+        setActiveGenerationId(null);
+        setIsDetailPanelOpen(false);
+      }
+      await refreshGenerations();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Delete failed');
     }
   }
 
@@ -807,6 +827,9 @@ export default function App() {
                 ) : null}
                 <button className="secondary-button detail-action" type="button" onClick={() => onRetry(activeGeneration.id)}>
                   Retry
+                </button>
+                <button className="secondary-button detail-action danger-action" type="button" onClick={() => onDelete(activeGeneration.id)}>
+                  Delete
                 </button>
               </div>
 
