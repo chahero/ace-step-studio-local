@@ -283,6 +283,27 @@ function CoverIcon() {
   );
 }
 
+function RepeatIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M17 2l3 3-3 3" />
+      <path d="M3 11V9a4 4 0 0 1 4-4h13" />
+      <path d="M7 22l-3-3 3-3" />
+      <path d="M21 13v2a4 4 0 0 1-4 4H4" />
+    </svg>
+  );
+}
+
+function VolumeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M11 5 6 9H3v6h3l5 4z" />
+      <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+      <path d="M18 6a8.5 8.5 0 0 1 0 12" />
+    </svg>
+  );
+}
+
 export default function App() {
   const [models, setModels] = useState<ModelPreset[]>([]);
   const [generations, setGenerations] = useState<Generation[]>([]);
@@ -294,6 +315,8 @@ export default function App() {
   const [randomizeLoading, setRandomizeLoading] = useState(false);
   const [coverRequestLoading, setCoverRequestLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playerVolume, setPlayerVolume] = useState(0.8);
+  const [isRepeatEnabled, setIsRepeatEnabled] = useState(false);
   const [isCaptionFocused, setIsCaptionFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(defaultForm);
@@ -772,6 +795,22 @@ export default function App() {
     };
   }, [currentAudioUrl]);
 
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+    audio.volume = playerVolume;
+  }, [playerVolume]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+    audio.loop = isRepeatEnabled;
+  }, [isRepeatEnabled]);
+
   function seekAudio(value: number) {
     const audio = audioRef.current;
     if (!audio || !Number.isFinite(value)) {
@@ -811,6 +850,15 @@ export default function App() {
 
     setIsDetailPanelOpen(true);
     setActiveGenerationId(filteredGenerations[activeGenerationIndex + 1]?.id ?? null);
+  }
+
+  function toggleRepeat() {
+    setIsRepeatEnabled((current) => !current);
+  }
+
+  function changeVolume(value: number) {
+    const nextValue = Math.min(1, Math.max(0, value));
+    setPlayerVolume(nextValue);
   }
 
   function onResizeStart(event: ReactPointerEvent<HTMLDivElement>) {
@@ -1460,6 +1508,15 @@ export default function App() {
             <div className="player-center">
               <div className="player-controls">
                 <button
+                  className={`secondary-button player-button player-icon-button ${isRepeatEnabled ? 'is-active' : ''}`}
+                  type="button"
+                  onClick={toggleRepeat}
+                  aria-label={isRepeatEnabled ? 'Repeat on' : 'Repeat off'}
+                  title={isRepeatEnabled ? 'Repeat on' : 'Repeat off'}
+                >
+                  <RepeatIcon />
+                </button>
+                <button
                   className="secondary-button player-button player-icon-button"
                   type="button"
                   onClick={playPrevious}
@@ -1508,6 +1565,20 @@ export default function App() {
           </div>
 
           <div className="player-actions">
+            <div className="player-volume">
+              <VolumeIcon />
+              <input
+                className="player-volume-range"
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={playerVolume}
+                onChange={(event) => changeVolume(Number(event.target.value))}
+                aria-label="Volume"
+                title="Volume"
+              />
+            </div>
             {currentAudioUrl ? (
               <a
                 className="secondary-button player-button player-icon-button player-open-button"

@@ -1126,6 +1126,12 @@ label,
   box-shadow: none;
 }
 
+.player-icon-button.is-active {
+  background: rgba(143, 124, 255, 0.18);
+  border-color: rgba(143, 124, 255, 0.45);
+  color: #d9d1ff;
+}
+
 .player-icon-button svg {
   width: 14px;
   height: 14px;
@@ -1227,8 +1233,52 @@ label,
 .player-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   justify-self: end;
+}
+
+.player-volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.player-volume svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: 0 0 auto;
+}
+
+.player-volume-range {
+  width: 88px;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  outline: none;
+}
+
+.player-volume-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #eef1f8;
+  border: 2px solid rgba(8, 10, 16, 0.95);
+}
+
+.player-volume-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #eef1f8;
+  border: 2px solid rgba(8, 10, 16, 0.95);
 }
 
 .detail-panel-shell {
