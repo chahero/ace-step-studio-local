@@ -41,7 +41,7 @@ select {
 
 .app-shell {
   display: grid;
-  grid-template-columns: var(--sidebar-width, 360px) 12px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width, 460px) 12px minmax(0, 1fr);
   min-height: 100vh;
 }
 
