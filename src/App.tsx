@@ -17,7 +17,7 @@ import type { Generation, ModelPreset } from './types';
 
 const defaultForm = {
   title: '',
-  prompt: 'A warm, intimate ambient track with soft vocals and slow evolution.',
+  prompt: '',
   lyrics: '',
   tags: '',
   genre_category: '',
@@ -35,7 +35,7 @@ const defaultForm = {
 const API_ROOT = 'http://127.0.0.1:8001';
 const SIDEBAR_MIN = 400;
 const SIDEBAR_MAX = 920;
-const DEFAULT_SIDEBAR_WIDTH = 460;
+const DEFAULT_SIDEBAR_WIDTH = 520;
 const DETAIL_PANEL_WIDTH = 340;
 type LibraryStatusFilter = 'all' | Generation['status'];
 type LibrarySortMode = 'newest' | 'oldest';
@@ -326,6 +326,7 @@ export default function App() {
   const [libraryStatusFilter, setLibraryStatusFilter] = useState<LibraryStatusFilter>('all');
   const [librarySortMode, setLibrarySortMode] = useState<LibrarySortMode>('newest');
   const [isLibrarySortMenuOpen, setIsLibrarySortMenuOpen] = useState(false);
+  const [selectedGenerationIds, setSelectedGenerationIds] = useState<string[]>([]);
   const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
   const [isKeyMenuOpen, setIsKeyMenuOpen] = useState(false);
@@ -447,6 +448,18 @@ export default function App() {
     () => filteredGenerations.findIndex((generation) => generation.id === activeGeneration?.id),
     [activeGeneration, filteredGenerations],
   );
+
+  const selectedVisibleCount = useMemo(
+    () => filteredGenerations.filter((generation) => selectedGenerationIds.includes(generation.id)).length,
+    [filteredGenerations, selectedGenerationIds],
+  );
+
+  const allVisibleSelected = filteredGenerations.length > 0 && selectedVisibleCount === filteredGenerations.length;
+
+  useEffect(() => {
+    const validIds = new Set(generations.map((generation) => generation.id));
+    setSelectedGenerationIds((current) => current.filter((id) => validIds.has(id)));
+  }, [generations]);
 
   async function refreshGenerations() {
     const data = await loadGenerations();
@@ -701,6 +714,53 @@ export default function App() {
     }
   }
 
+  function toggleGenerationSelection(id: string) {
+    setSelectedGenerationIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  }
+
+  function toggleSelectAllVisible() {
+    const visibleIds = filteredGenerations.map((generation) => generation.id);
+    if (allVisibleSelected) {
+      setSelectedGenerationIds((current) => current.filter((id) => !visibleIds.includes(id)));
+      return;
+    }
+
+    setSelectedGenerationIds((current) => Array.from(new Set([...current, ...visibleIds])));
+  }
+
+  async function onDeleteSelected() {
+    setError(null);
+
+    const selectedGenerations = generations.filter((generation) => selectedGenerationIds.includes(generation.id));
+    const deletable = selectedGenerations.filter((generation) => generation.status !== 'running');
+    const skipped = selectedGenerations.length - deletable.length;
+
+    if (deletable.length === 0) {
+      setError(skipped > 0 ? 'Running songs cannot be deleted.' : 'No songs selected.');
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete ${deletable.length} selected song(s) and their local files?`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await Promise.all(deletable.map((generation) => deleteGeneration(generation.id)));
+      if (activeGenerationId && deletable.some((generation) => generation.id === activeGenerationId)) {
+        setActiveGenerationId(null);
+        setIsDetailPanelOpen(false);
+      }
+      setSelectedGenerationIds((current) => current.filter((id) => !deletable.some((generation) => generation.id === id)));
+      await refreshGenerations();
+      if (skipped > 0) {
+        setError(`${skipped} running song(s) were skipped.`);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Bulk delete failed');
+    }
+  }
+
   async function onGenerateCover(id: string) {
     setError(null);
     setCoverRequestLoading(true);
@@ -733,7 +793,6 @@ export default function App() {
       temperature: preset.temperature,
       cfg_scale: preset.cfg_scale,
       tags: preset.tags,
-      prompt: current.prompt.trim() ? current.prompt : preset.prompt,
     }));
   }
 
@@ -1329,7 +1388,7 @@ export default function App() {
           <div className="panel library-panel">
             <div className="panel-header">
               <h2>Library</h2>
-              <span>{activeGeneration ? `Selected: ${activeGeneration.model_preset_id}` : `${filteredGenerations.length} songs`}</span>
+              <span>{selectedGenerationIds.length > 0 ? `${selectedGenerationIds.length} selected` : `${filteredGenerations.length} songs`}</span>
             </div>
 
             <div className="library-toolbar">
@@ -1390,19 +1449,44 @@ export default function App() {
                   </div>
                 ) : null}
               </div>
+              <div className="library-bulk-actions">
+                <label className="library-select-all">
+                  <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAllVisible} />
+                  <span>Select all</span>
+                </label>
+                <button
+                  type="button"
+                  className="secondary-button library-delete-selected"
+                  onClick={onDeleteSelected}
+                  disabled={selectedGenerationIds.length === 0}
+                >
+                  Delete selected
+                </button>
+              </div>
             </div>
 
             <div className="history-list">
               {filteredGenerations.map((generation) => (
-                <button
+                <div
                   key={generation.id}
-                  type="button"
                   className={`history-item ${generation.id === activeGeneration?.id ? 'is-active' : ''}`}
-                  onClick={() => {
-                    setActiveGenerationId(generation.id);
-                    setIsDetailPanelOpen(true);
-                  }}
                 >
+                  <label className="history-select">
+                    <input
+                      type="checkbox"
+                      checked={selectedGenerationIds.includes(generation.id)}
+                      onChange={() => toggleGenerationSelection(generation.id)}
+                      aria-label={`Select ${generation.title ?? generation.prompt}`}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="history-item-main"
+                    onClick={() => {
+                      setActiveGenerationId(generation.id);
+                      setIsDetailPanelOpen(true);
+                    }}
+                  >
                   <div className="history-left">
                     <div className="library-thumb-wrap">
                       {renderArtwork(generation, 'library-thumb')}
@@ -1436,7 +1520,8 @@ export default function App() {
                     <span className={`mini-badge status-${generation.status}`}>{generation.status}</span>
                     <time>{formatTime(generation.created_at)}</time>
                   </div>
-                </button>
+                  </button>
+                </div>
               ))}
               {filteredGenerations.length === 0 ? <div className="empty-state">No songs match your filters.</div> : null}
             </div>
