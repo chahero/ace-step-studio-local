@@ -2,6 +2,8 @@
 
 Suno-style music generation studio built on top of ComfyUI, ACE-Step 1.5 workflows, and Ollama.
 
+![Ace Step Studio main screen](docs/screenshots/studio-main.png)
+
 The app currently supports:
 
 - song generation with `base / sft / turbo` ACE-Step workflows
@@ -139,10 +141,6 @@ storage/
 ```
 
 ## Screenshots
-
-### Main studio
-
-![Ace Step Studio main screen](docs/screenshots/studio-main.png)
 
 Create a folder like this if you want to keep screenshots in the repo:
 
