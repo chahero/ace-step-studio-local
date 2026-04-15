@@ -24,7 +24,6 @@ const SIDEBAR_MIN = 320;
 const SIDEBAR_MAX = 760;
 const DEFAULT_SIDEBAR_WIDTH = 380;
 const DETAIL_PANEL_WIDTH = 340;
-type PanelTab = 'simple' | 'advanced' | 'sounds';
 type LibraryStatusFilter = 'all' | Generation['status'];
 type LibrarySortMode = 'newest' | 'oldest';
 
@@ -79,15 +78,35 @@ const presetLibrary = {
 const soundPalette = [
   'ambient',
   'cinematic',
+  'lo-fi',
+  'jazz-hop',
   'neo-soul',
+  'synthwave',
+  'dream-pop',
+  'vaporwave',
   'trap',
-  'warm',
+  'house',
+  'techno',
+  'acoustic',
+  'orchestral',
+  'experimental',
+  'folk',
+  'r&b',
   'vocal',
+  'warm',
   'dark',
   'minimal',
-  'lo-fi',
+  'ethereal',
+  'gritty',
   'drift',
 ];
+
+function splitTags(value: string) {
+  return value
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+}
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat('ko-KR', {
@@ -120,7 +139,6 @@ export default function App() {
   const [form, setForm] = useState(defaultForm);
   const [activeGenerationId, setActiveGenerationId] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
-  const [activeTab, setActiveTab] = useState<PanelTab>('simple');
   const [librarySearch, setLibrarySearch] = useState('');
   const [libraryStatusFilter, setLibraryStatusFilter] = useState<LibraryStatusFilter>('all');
   const [librarySortMode, setLibrarySortMode] = useState<LibrarySortMode>('newest');
@@ -287,7 +305,6 @@ export default function App() {
     setForm((current) => ({
       ...current,
       model_preset_id: presetId,
-      prompt: preset.prompt,
       bpm: preset.bpm,
       duration: preset.duration,
       timesignature: preset.timesignature,
@@ -297,8 +314,23 @@ export default function App() {
       temperature: preset.temperature,
       cfg_scale: preset.cfg_scale,
       tags: preset.tags,
-      lyrics: current.lyrics,
+      prompt: current.prompt.trim() ? current.prompt : preset.prompt,
     }));
+  }
+
+  function toggleSoundTag(tag: string) {
+    setForm((current) => {
+      const tags = splitTags(current.tags);
+      const normalizedTag = tag.trim();
+      const nextTags = tags.includes(normalizedTag)
+        ? tags.filter((existingTag) => existingTag !== normalizedTag)
+        : [...tags, normalizedTag];
+
+      return {
+        ...current,
+        tags: nextTags.join(', '),
+      };
+    });
   }
 
   const selectedModel = models.find((model) => model.id === form.model_preset_id) ?? models[0] ?? null;
@@ -458,19 +490,6 @@ export default function App() {
               })}
             </div>
 
-          <div className="panel-tabs">
-            {(['simple', 'advanced', 'sounds'] as PanelTab[]).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                className={`panel-tab ${activeTab === tab ? 'is-active' : ''}`}
-                onClick={() => setActiveTab(tab)}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
           <div className="sidebar-actions">
             <button className={`secondary-button action-button ${assistLoading ? 'is-loading' : ''}`} type="button" onClick={onAssist} disabled={assistLoading}>
               <span className="action-button-content">
@@ -498,46 +517,69 @@ export default function App() {
             </button>
           </div>
 
-          {activeTab === 'simple' ? (
-            <div className="panel-stack">
-              <label className="block-field">
-                <span>Lyrics</span>
-                <textarea
-                  className="textarea textarea-small"
-                  value={form.lyrics}
-                  onChange={(event) => setForm((current) => ({ ...current, lyrics: event.target.value }))}
-                  rows={8}
-                  placeholder="Write some lyrics or leave blank for instrumental"
-                />
-              </label>
+          <div className="panel-stack">
+            <label className="block-field">
+              <span>Caption</span>
+              <textarea
+                className="textarea textarea-small"
+                value={form.prompt}
+                onChange={(event) => setForm((current) => ({ ...current, prompt: event.target.value }))}
+                rows={7}
+                placeholder="Describe the song in one strong idea"
+              />
+            </label>
 
-              <label className="block-field">
-                <span>Style</span>
-                <textarea
-                  className="textarea textarea-small"
-                  value={form.tags}
-                  onChange={(event) => setForm((current) => ({ ...current, tags: event.target.value }))}
-                  rows={4}
-                  placeholder="Mood, texture, voice, and production style"
-                />
-              </label>
+            <label className="block-field">
+              <span>Lyrics</span>
+              <textarea
+                className="textarea textarea-small"
+                value={form.lyrics}
+                onChange={(event) => setForm((current) => ({ ...current, lyrics: event.target.value }))}
+                rows={8}
+                placeholder="Write sections like [Verse], [Chorus], or leave blank for instrumental"
+              />
+            </label>
 
+            <div className="tab-copy subtle">
+              <div className="tab-copy-title">Sound direction</div>
+              <div className="tab-copy-description">
+                Pick a few tags to steer texture, genre, and energy. You can still type your own tags below.
+              </div>
             </div>
-          ) : null}
 
-          {activeTab === 'advanced' ? (
-            <div className="panel-stack">
-              <label className="block-field">
-                <span>Prompt</span>
-                <textarea
-                  className="textarea"
-                  value={form.prompt}
-                  onChange={(event) => setForm((current) => ({ ...current, prompt: event.target.value }))}
-                  rows={7}
-                  placeholder="Describe the song you want to create"
-                />
-              </label>
+            <div className="sound-cloud">
+              {soundPalette.map((sound) => {
+                const isActive = splitTags(form.tags).includes(sound);
+                return (
+                  <button
+                    key={sound}
+                    type="button"
+                    className={`sound-chip ${isActive ? 'is-active' : ''}`}
+                    onClick={() => toggleSoundTag(sound)}
+                    aria-pressed={isActive}
+                  >
+                    {sound}
+                  </button>
+                );
+              })}
+            </div>
 
+            <label className="block-field">
+              <span>Sound tags</span>
+              <textarea
+                className="textarea"
+                value={form.tags}
+                onChange={(event) => setForm((current) => ({ ...current, tags: event.target.value }))}
+                rows={4}
+                placeholder="Mood, texture, voice, instruments, and production style"
+              />
+            </label>
+
+            <details className="advanced-section" open>
+              <summary>Advanced metadata</summary>
+              <div className="advanced-summary">
+                BPM, duration, key, language, seed, meter, temperature, and CFG scale.
+              </div>
               <div className="field-grid">
                 <label>
                   <span>BPM</span>
@@ -618,42 +660,8 @@ export default function App() {
                   />
                 </label>
               </div>
-            </div>
-          ) : null}
-
-          {activeTab === 'sounds' ? (
-            <div className="panel-stack">
-              <div className="sound-cloud">
-                {soundPalette.map((sound) => (
-                  <button
-                    key={sound}
-                    type="button"
-                    className="sound-chip"
-                    onClick={() =>
-                      setForm((current) => ({
-                        ...current,
-                        tags: current.tags ? `${current.tags}, ${sound}` : sound,
-                      }))
-                    }
-                  >
-                    {sound}
-                  </button>
-                ))}
-              </div>
-
-              <label className="block-field">
-                <span>Prompt</span>
-                <textarea
-                  className="textarea"
-                  value={form.prompt}
-                  onChange={(event) => setForm((current) => ({ ...current, prompt: event.target.value }))}
-                  rows={7}
-                  placeholder="Describe the song you want to create"
-                />
-              </label>
-
-            </div>
-          ) : null}
+            </details>
+          </div>
 
           <div className="button-row">
             <button className="primary-button" type="button" onClick={onGenerate} disabled={loading}>
