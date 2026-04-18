@@ -332,7 +332,8 @@ export default function App() {
   const [isCaptionFocused, setIsCaptionFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(defaultForm);
-  const [activeGenerationId, setActiveGenerationId] = useState<string | null>(null);
+  const [selectedGenerationId, setSelectedGenerationId] = useState<string | null>(null);
+  const [playingGenerationId, setPlayingGenerationId] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [librarySearch, setLibrarySearch] = useState('');
   const [libraryStatusFilter, setLibraryStatusFilter] = useState<LibraryStatusFilter>('all');
@@ -415,6 +416,16 @@ export default function App() {
       if (!elementTarget?.closest('.history-menu-wrap')) {
         setOpenHistoryMenuId(null);
       }
+      const clickedInsideSelectionSurface = Boolean(
+        elementTarget?.closest('.history-item-main') ||
+          elementTarget?.closest('.history-menu-wrap') ||
+          elementTarget?.closest('.detail-panel') ||
+          elementTarget?.closest('.player-bar'),
+      );
+      if (!clickedInsideSelectionSurface) {
+        setSelectedGenerationId(null);
+        setIsDetailPanelOpen(false);
+      }
     };
 
     document.addEventListener('pointerdown', handlePointerDown);
@@ -437,9 +448,14 @@ export default function App() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [lightboxImageUrl]);
 
-  const activeGeneration = useMemo(
-    () => generations.find((generation) => generation.id === activeGenerationId) ?? generations[0] ?? null,
-    [activeGenerationId, generations],
+  const selectedGeneration = useMemo(
+    () => generations.find((generation) => generation.id === selectedGenerationId) ?? null,
+    [selectedGenerationId, generations],
+  );
+
+  const playingGeneration = useMemo(
+    () => generations.find((generation) => generation.id === playingGenerationId) ?? null,
+    [playingGenerationId, generations],
   );
 
   const filteredGenerations = useMemo(() => {
@@ -461,9 +477,9 @@ export default function App() {
       });
   }, [generations, librarySearch, librarySortMode, libraryStatusFilter]);
 
-  const activeGenerationIndex = useMemo(
-    () => filteredGenerations.findIndex((generation) => generation.id === activeGeneration?.id),
-    [activeGeneration, filteredGenerations],
+  const playingGenerationIndex = useMemo(
+    () => filteredGenerations.findIndex((generation) => generation.id === playingGeneration?.id),
+    [playingGeneration, filteredGenerations],
   );
 
   const selectedVisibleCount = useMemo(
@@ -476,6 +492,12 @@ export default function App() {
   useEffect(() => {
     const validIds = new Set(generations.map((generation) => generation.id));
     setSelectedGenerationIds((current) => current.filter((id) => validIds.has(id)));
+  }, [generations]);
+
+  useEffect(() => {
+    const validIds = new Set(generations.map((generation) => generation.id));
+    setSelectedGenerationId((current) => (current && validIds.has(current) ? current : null));
+    setPlayingGenerationId((current) => (current && validIds.has(current) ? current : null));
   }, [generations]);
 
   async function refreshGenerations() {
@@ -722,9 +744,12 @@ export default function App() {
 
     try {
       await deleteGeneration(id);
-      if (activeGenerationId === id) {
-        setActiveGenerationId(null);
+      if (selectedGenerationId === id) {
+        setSelectedGenerationId(null);
         setIsDetailPanelOpen(false);
+      }
+      if (playingGenerationId === id) {
+        setPlayingGenerationId(null);
       }
       await refreshGenerations();
     } catch (cause) {
@@ -767,9 +792,12 @@ export default function App() {
 
     try {
       await Promise.all(deletable.map((generation) => deleteGeneration(generation.id)));
-      if (activeGenerationId && deletable.some((generation) => generation.id === activeGenerationId)) {
-        setActiveGenerationId(null);
+      if (selectedGenerationId && deletable.some((generation) => generation.id === selectedGenerationId)) {
+        setSelectedGenerationId(null);
         setIsDetailPanelOpen(false);
+      }
+      if (playingGenerationId && deletable.some((generation) => generation.id === playingGenerationId)) {
+        setPlayingGenerationId(null);
       }
       setSelectedGenerationIds((current) => current.filter((id) => !deletable.some((generation) => generation.id === id)));
       await refreshGenerations();
@@ -789,8 +817,8 @@ export default function App() {
     try {
       await generateCover(id);
       await refreshGenerations();
-      if (activeGenerationId !== id) {
-        setActiveGenerationId(id);
+      if (selectedGenerationId !== id) {
+        setSelectedGenerationId(id);
       }
       setIsDetailPanelOpen(true);
     } catch (cause) {
@@ -808,8 +836,8 @@ export default function App() {
     try {
       await postprocessGeneration(id);
       await refreshGenerations();
-      if (activeGenerationId !== id) {
-        setActiveGenerationId(id);
+      if (selectedGenerationId !== id) {
+        setSelectedGenerationId(id);
       }
       setIsDetailPanelOpen(true);
     } catch (cause) {
@@ -884,10 +912,11 @@ export default function App() {
     setLightboxTitle(title);
   }
 
-  const currentAudioUrl = getAudioUrl(activeGeneration);
-  const currentTitle = activeGeneration?.title ?? activeGeneration?.prompt ?? 'No song selected';
-  const currentMeta = activeGeneration
-    ? `${activeGeneration.model_preset_id} · ${activeGeneration.duration ?? '-'} sec · ${activeGeneration.bpm ?? '-'} BPM`
+  const playerGeneration = playingGeneration ?? selectedGeneration;
+  const currentAudioUrl = getAudioUrl(playerGeneration);
+  const currentTitle = playerGeneration?.title ?? playerGeneration?.prompt ?? 'No song selected';
+  const currentMeta = playerGeneration
+    ? `${playerGeneration.model_preset_id} · ${playerGeneration.duration ?? '-'} sec · ${playerGeneration.bpm ?? '-'} BPM`
     : 'Select a song from the library';
 
   useEffect(() => {
@@ -970,21 +999,19 @@ export default function App() {
   }
 
   function playPrevious() {
-    if (activeGenerationIndex <= 0) {
+    if (playingGenerationIndex <= 0) {
       return;
     }
-
-    setIsDetailPanelOpen(true);
-    setActiveGenerationId(filteredGenerations[activeGenerationIndex - 1]?.id ?? null);
+    setShouldAutoplayOnLoad(true);
+    setPlayingGenerationId(filteredGenerations[playingGenerationIndex - 1]?.id ?? null);
   }
 
   function playNext() {
-    if (activeGenerationIndex < 0 || activeGenerationIndex >= filteredGenerations.length - 1) {
+    if (playingGenerationIndex < 0 || playingGenerationIndex >= filteredGenerations.length - 1) {
       return;
     }
-
-    setIsDetailPanelOpen(true);
-    setActiveGenerationId(filteredGenerations[activeGenerationIndex + 1]?.id ?? null);
+    setShouldAutoplayOnLoad(true);
+    setPlayingGenerationId(filteredGenerations[playingGenerationIndex + 1]?.id ?? null);
   }
 
   function toggleRepeat() {
@@ -997,7 +1024,7 @@ export default function App() {
   }
 
   function playGeneration(generationId: string) {
-    if (activeGeneration?.id === generationId && currentAudioUrl) {
+    if (playingGeneration?.id === generationId && currentAudioUrl) {
       const audio = audioRef.current;
       if (audio) {
         if (audio.paused) {
@@ -1010,7 +1037,7 @@ export default function App() {
     }
 
     setShouldAutoplayOnLoad(true);
-    setActiveGenerationId(generationId);
+    setPlayingGenerationId(generationId);
   }
 
   function toggleHistoryMenu(generationId: string) {
@@ -1046,7 +1073,7 @@ export default function App() {
 
   return (
     <div
-      className={`app-shell ${isDetailPanelOpen && activeGeneration ? 'has-detail-panel' : ''}`}
+      className={`app-shell ${isDetailPanelOpen && selectedGeneration ? 'has-detail-panel' : ''}`}
       style={{ ['--sidebar-width' as '--sidebar-width']: `${sidebarWidth}px` } as CSSProperties}
     >
       <aside className="sidebar">
@@ -1416,7 +1443,7 @@ export default function App() {
         onLostPointerCapture={onResizeEnd}
       />
 
-      <main className={`content ${isDetailPanelOpen && activeGeneration ? 'has-detail-panel' : ''}`}>
+      <main className={`content ${isDetailPanelOpen && selectedGeneration ? 'has-detail-panel' : ''}`}>
         <section className="workspace-header">
           <div>
             <div className="eyebrow">LOCAL STUDIO</div>
@@ -1521,7 +1548,7 @@ export default function App() {
               {filteredGenerations.map((generation) => (
                 <div
                   key={generation.id}
-                  className={`history-item ${generation.id === activeGeneration?.id ? 'is-active' : ''}`}
+                  className={`history-item ${generation.id === selectedGeneration?.id ? 'is-active' : ''}`}
                 >
                   <label className="history-select">
                     <input
@@ -1535,7 +1562,7 @@ export default function App() {
                     type="button"
                     className="history-item-main"
                     onClick={() => {
-                      setActiveGenerationId(generation.id);
+                      setSelectedGenerationId(generation.id);
                       setIsDetailPanelOpen(true);
                     }}
                   >
@@ -1551,10 +1578,10 @@ export default function App() {
                             event.stopPropagation();
                             playGeneration(generation.id);
                           }}
-                          aria-label={activeGeneration?.id === generation.id && isPlaying ? 'Pause track' : 'Play track'}
-                          title={activeGeneration?.id === generation.id && isPlaying ? 'Pause' : 'Play'}
+                          aria-label={playingGeneration?.id === generation.id && isPlaying ? 'Pause track' : 'Play track'}
+                          title={playingGeneration?.id === generation.id && isPlaying ? 'Pause' : 'Play'}
                         >
-                          {activeGeneration?.id === generation.id && isPlaying ? <PauseIcon /> : <PlayIcon />}
+                          {playingGeneration?.id === generation.id && isPlaying ? <PauseIcon /> : <PlayIcon />}
                         </button>
                       ) : null}
                     </div>
@@ -1646,76 +1673,84 @@ export default function App() {
         </section>
 
         <aside
-          className={`detail-panel-shell ${isDetailPanelOpen && activeGeneration ? 'is-open' : ''}`}
+          className={`detail-panel-shell ${isDetailPanelOpen && selectedGeneration ? 'is-open' : ''}`}
           style={{ ['--detail-panel-width' as '--detail-panel-width']: `${DETAIL_PANEL_WIDTH}px` } as CSSProperties}
         >
-          {activeGeneration ? (
+          {selectedGeneration ? (
             <div className="detail-panel">
               <div className="detail-panel-top">
                 <div>
                   <div className="detail-eyebrow">Song details</div>
-                  <h3>{activeGeneration.title ?? activeGeneration.prompt}</h3>
+                  <h3>{selectedGeneration.title ?? selectedGeneration.prompt}</h3>
                 </div>
-                <button className="detail-close" type="button" onClick={() => setIsDetailPanelOpen(false)} aria-label="Close details">
+                <button
+                  className="detail-close"
+                  type="button"
+                  onClick={() => {
+                    setSelectedGenerationId(null);
+                    setIsDetailPanelOpen(false);
+                  }}
+                  aria-label="Close details"
+                >
                   ×
                 </button>
               </div>
 
-              {activeGeneration.cover_image_url ? (
+              {selectedGeneration.cover_image_url ? (
                 <button
                   className="detail-art-button"
                   type="button"
-                  onClick={() => openLightbox(activeGeneration.cover_image_url!, activeGeneration.title ?? activeGeneration.prompt)}
+                  onClick={() => openLightbox(selectedGeneration.cover_image_url!, selectedGeneration.title ?? selectedGeneration.prompt)}
                   aria-label="Open cover image"
                   title="Open cover image"
                 >
-                  {renderArtwork(activeGeneration, 'detail-art')}
+                  {renderArtwork(selectedGeneration, 'detail-art')}
                 </button>
               ) : (
-                renderArtwork(activeGeneration, 'detail-art')
+                renderArtwork(selectedGeneration, 'detail-art')
               )}
 
               <div className="detail-meta-row">
-                <span>{activeGeneration.model_preset_id}</span>
-                <span>{activeGeneration.bpm ?? '-'} BPM</span>
-                <span>{activeGeneration.duration ?? '-'} sec</span>
-                <span>{activeGeneration.language ?? '-'}</span>
+                <span>{selectedGeneration.model_preset_id}</span>
+                <span>{selectedGeneration.bpm ?? '-'} BPM</span>
+                <span>{selectedGeneration.duration ?? '-'} sec</span>
+                <span>{selectedGeneration.language ?? '-'}</span>
               </div>
 
               <div className="detail-actions">
                 <button
                   className="secondary-button detail-action detail-postprocess-button"
                   type="button"
-                  onClick={() => onPostprocess(activeGeneration.id)}
-                  disabled={activeGeneration.status !== 'completed' || isPostprocessRunning(activeGeneration)}
+                  onClick={() => onPostprocess(selectedGeneration.id)}
+                  disabled={selectedGeneration.status !== 'completed' || isPostprocessRunning(selectedGeneration)}
                 >
-                  {isPostprocessRunning(activeGeneration) ? (
+                  {isPostprocessRunning(selectedGeneration) ? (
                     <>
                       <span className="button-spinner" aria-hidden="true" />
                       <span>Processing...</span>
                     </>
                   ) : (
-                    <span>{activeGeneration.postprocess_status === 'completed' ? 'Re-process' : 'Post-process'}</span>
+                    <span>{selectedGeneration.postprocess_status === 'completed' ? 'Re-process' : 'Post-process'}</span>
                   )}
                 </button>
                 <button
                   className="secondary-button detail-action detail-icon-button"
                   type="button"
-                  onClick={() => onGenerateCover(activeGeneration.id)}
+                  onClick={() => onGenerateCover(selectedGeneration.id)}
                   aria-label="Generate cover"
                   title="Generate cover"
-                  disabled={coverRequestLoading || activeGeneration.cover_status === 'running' || activeGeneration.status !== 'completed'}
+                  disabled={coverRequestLoading || selectedGeneration.cover_status === 'running' || selectedGeneration.status !== 'completed'}
                 >
-                  {coverRequestLoading || activeGeneration.cover_status === 'running' ? (
+                  {coverRequestLoading || selectedGeneration.cover_status === 'running' ? (
                     <span className="button-spinner" aria-hidden="true" />
                   ) : (
                     <CoverIcon />
                   )}
                 </button>
-                {getAudioUrl(activeGeneration) ? (
+                {getAudioUrl(selectedGeneration) ? (
                   <a
                     className="secondary-button link-button detail-action detail-icon-button"
-                    href={getAudioUrl(activeGeneration) ?? '#'}
+                    href={getAudioUrl(selectedGeneration) ?? '#'}
                     target="_blank"
                     rel="noreferrer"
                     aria-label="Open audio"
@@ -1727,7 +1762,7 @@ export default function App() {
                 <button
                   className="secondary-button detail-action detail-icon-button"
                   type="button"
-                  onClick={() => onRetry(activeGeneration.id)}
+                  onClick={() => onRetry(selectedGeneration.id)}
                   aria-label="Retry generation"
                   title="Retry generation"
                 >
@@ -1736,7 +1771,7 @@ export default function App() {
                 <button
                   className="secondary-button detail-action detail-icon-button danger-action"
                   type="button"
-                  onClick={() => onDelete(activeGeneration.id)}
+                  onClick={() => onDelete(selectedGeneration.id)}
                   aria-label="Delete generation"
                   title="Delete generation"
                 >
@@ -1746,54 +1781,54 @@ export default function App() {
 
               <div className="detail-block">
                 <div className="detail-block-title">Tags</div>
-                <div className="detail-text">{activeGeneration.tags || 'No tags'}</div>
+                <div className="detail-text">{selectedGeneration.tags || 'No tags'}</div>
               </div>
 
-              {(activeGeneration.postprocess_status || activeGeneration.postprocess_error_message) ? (
+              {(selectedGeneration.postprocess_status || selectedGeneration.postprocess_error_message) ? (
                 <div className="detail-block">
                   <div className="detail-block-title">Audio post-process</div>
                   <div className="detail-text">
-                    {activeGeneration.postprocess_status === 'running'
+                    {selectedGeneration.postprocess_status === 'running'
                       ? 'Running ffmpeg post-processing chain.'
-                      : activeGeneration.postprocess_status === 'completed'
-                        ? `Completed${activeGeneration.postprocess_applied_at ? ` · ${formatTime(activeGeneration.postprocess_applied_at)}` : ''}`
-                        : activeGeneration.postprocess_status === 'failed'
+                      : selectedGeneration.postprocess_status === 'completed'
+                        ? `Completed${selectedGeneration.postprocess_applied_at ? ` · ${formatTime(selectedGeneration.postprocess_applied_at)}` : ''}`
+                        : selectedGeneration.postprocess_status === 'failed'
                           ? 'Failed'
                           : 'Idle'}
                   </div>
                 </div>
               ) : null}
 
-              {activeGeneration.cover_prompt ? (
+              {selectedGeneration.cover_prompt ? (
                 <div className="detail-block">
                   <div className="detail-block-title">Cover concept</div>
-                  <div className="detail-text">{activeGeneration.cover_prompt}</div>
+                  <div className="detail-text">{selectedGeneration.cover_prompt}</div>
                 </div>
               ) : null}
 
               <div className="detail-block">
                 <div className="detail-block-title">Lyrics</div>
-                <div className="detail-lyrics">{activeGeneration.lyrics?.trim() || 'No lyrics provided.'}</div>
+                <div className="detail-lyrics">{selectedGeneration.lyrics?.trim() || 'No lyrics provided.'}</div>
               </div>
 
-              {activeGeneration.cover_error_message ? (
+              {selectedGeneration.cover_error_message ? (
                 <div className="detail-block">
                   <div className="detail-block-title">Cover error</div>
-                  <div className="detail-text error-text">{activeGeneration.cover_error_message}</div>
+                  <div className="detail-text error-text">{selectedGeneration.cover_error_message}</div>
                 </div>
               ) : null}
 
-              {activeGeneration.error_message ? (
+              {selectedGeneration.error_message ? (
                 <div className="detail-block">
                   <div className="detail-block-title">Error</div>
-                  <div className="detail-text error-text">{activeGeneration.error_message}</div>
+                  <div className="detail-text error-text">{selectedGeneration.error_message}</div>
                 </div>
               ) : null}
 
-              {activeGeneration.postprocess_error_message ? (
+              {selectedGeneration.postprocess_error_message ? (
                 <div className="detail-block">
                   <div className="detail-block-title">Post-process error</div>
-                  <div className="detail-text error-text">{activeGeneration.postprocess_error_message}</div>
+                  <div className="detail-text error-text">{selectedGeneration.postprocess_error_message}</div>
                 </div>
               ) : null}
             </div>
@@ -1811,7 +1846,7 @@ export default function App() {
           />
 
           <div className="player-main">
-            {renderArtwork(activeGeneration, 'player-art')}
+            {renderArtwork(playerGeneration, 'player-art')}
             <div className="player-copy">
               <strong>{currentTitle}</strong>
               <span>{currentMeta}</span>
@@ -1833,7 +1868,7 @@ export default function App() {
                   className="secondary-button player-button player-icon-button"
                   type="button"
                   onClick={playPrevious}
-                  disabled={activeGenerationIndex <= 0}
+                  disabled={playingGenerationIndex <= 0}
                   aria-label="Previous track"
                   title="Previous"
                 >
@@ -1853,7 +1888,7 @@ export default function App() {
                   className="secondary-button player-button player-icon-button"
                   type="button"
                   onClick={playNext}
-                  disabled={activeGenerationIndex < 0 || activeGenerationIndex >= filteredGenerations.length - 1}
+                  disabled={playingGenerationIndex < 0 || playingGenerationIndex >= filteredGenerations.length - 1}
                   aria-label="Next track"
                   title="Next"
                 >
