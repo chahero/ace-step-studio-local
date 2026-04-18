@@ -1577,6 +1577,7 @@ label,
 
 .detail-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -1589,6 +1590,20 @@ label,
   height: 38px;
   padding: 0;
   border-radius: 999px;
+}
+
+.detail-postprocess-button {
+  min-width: 118px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .detail-icon-button svg {

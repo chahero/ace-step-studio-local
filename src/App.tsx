@@ -11,6 +11,7 @@ import {
   generatePromptTitle,
   loadGenerations,
   loadModels,
+  postprocessGeneration,
   retryGeneration,
 } from './api';
 import type { Generation, ModelPreset } from './types';
@@ -324,6 +325,7 @@ export default function App() {
   const [metadataLoading, setMetadataLoading] = useState(false);
   const [randomizeLoading, setRandomizeLoading] = useState(false);
   const [coverRequestLoading, setCoverRequestLoading] = useState(false);
+  const [postprocessRequestLoadingId, setPostprocessRequestLoadingId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playerVolume, setPlayerVolume] = useState(0.8);
   const [isRepeatEnabled, setIsRepeatEnabled] = useState(false);
@@ -748,11 +750,13 @@ export default function App() {
     setError(null);
 
     const selectedGenerations = generations.filter((generation) => selectedGenerationIds.includes(generation.id));
-    const deletable = selectedGenerations.filter((generation) => generation.status !== 'running');
+    const deletable = selectedGenerations.filter(
+      (generation) => generation.status !== 'running' && generation.postprocess_status !== 'running',
+    );
     const skipped = selectedGenerations.length - deletable.length;
 
     if (deletable.length === 0) {
-      setError(skipped > 0 ? 'Running songs cannot be deleted.' : 'No songs selected.');
+      setError(skipped > 0 ? 'Running songs or active post-processing jobs cannot be deleted.' : 'No songs selected.');
       return;
     }
 
@@ -770,7 +774,7 @@ export default function App() {
       setSelectedGenerationIds((current) => current.filter((id) => !deletable.some((generation) => generation.id === id)));
       await refreshGenerations();
       if (skipped > 0) {
-        setError(`${skipped} running song(s) were skipped.`);
+        setError(`${skipped} running song(s) or post-processing job(s) were skipped.`);
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Bulk delete failed');
@@ -793,6 +797,25 @@ export default function App() {
       setError(cause instanceof Error ? cause.message : 'Cover generation failed');
     } finally {
       setCoverRequestLoading(false);
+    }
+  }
+
+  async function onPostprocess(id: string) {
+    setError(null);
+    setOpenHistoryMenuId(null);
+    setPostprocessRequestLoadingId(id);
+
+    try {
+      await postprocessGeneration(id);
+      await refreshGenerations();
+      if (activeGenerationId !== id) {
+        setActiveGenerationId(id);
+      }
+      setIsDetailPanelOpen(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Audio post-processing failed');
+    } finally {
+      setPostprocessRequestLoadingId(null);
     }
   }
 
@@ -837,7 +860,7 @@ export default function App() {
   };
 
   function getAudioUrl(generation?: Generation | null) {
-    return generation?.output_audio_url ?? null;
+    return generation?.postprocess_audio_url ?? generation?.output_audio_url ?? null;
   }
 
   function renderArtwork(generation?: Generation | null, className = '') {
@@ -850,6 +873,10 @@ export default function App() {
 
   function getDownloadUrl(generationId: string) {
     return `${API_ROOT}/api/generations/${generationId}/download`;
+  }
+
+  function isPostprocessRunning(generation?: Generation | null) {
+    return generation?.postprocess_status === 'running' || postprocessRequestLoadingId === generation?.id;
   }
 
   function openLightbox(imageUrl: string, title: string) {
@@ -1516,7 +1543,7 @@ export default function App() {
                     <div className="library-thumb-wrap">
                       {renderArtwork(generation, 'library-thumb')}
                       <div className="library-thumb-duration">{formatAudioTime(generation.duration ?? 0)}</div>
-                      {generation.output_audio_url ? (
+                      {getAudioUrl(generation) ? (
                         <button
                           className="library-thumb-play"
                           type="button"
@@ -1572,10 +1599,10 @@ export default function App() {
                             <CoverIcon />
                             <span>Generate Cover</span>
                           </button>
-                          {generation.output_audio_url ? (
+                          {getAudioUrl(generation) ? (
                             <a
                               className="history-menu-item history-menu-link"
-                              href={generation.output_audio_url}
+                              href={getAudioUrl(generation) ?? '#'}
                               target="_blank"
                               rel="noreferrer"
                               onClick={() => setOpenHistoryMenuId(null)}
@@ -1584,7 +1611,7 @@ export default function App() {
                               <span>Open Audio</span>
                             </a>
                           ) : null}
-                          {generation.output_audio_url ? (
+                          {getAudioUrl(generation) ? (
                             <a
                               className="history-menu-item history-menu-link"
                               href={getDownloadUrl(generation.id)}
@@ -1657,6 +1684,21 @@ export default function App() {
 
               <div className="detail-actions">
                 <button
+                  className="secondary-button detail-action detail-postprocess-button"
+                  type="button"
+                  onClick={() => onPostprocess(activeGeneration.id)}
+                  disabled={activeGeneration.status !== 'completed' || isPostprocessRunning(activeGeneration)}
+                >
+                  {isPostprocessRunning(activeGeneration) ? (
+                    <>
+                      <span className="button-spinner" aria-hidden="true" />
+                      <span>Processing...</span>
+                    </>
+                  ) : (
+                    <span>{activeGeneration.postprocess_status === 'completed' ? 'Re-process' : 'Post-process'}</span>
+                  )}
+                </button>
+                <button
                   className="secondary-button detail-action detail-icon-button"
                   type="button"
                   onClick={() => onGenerateCover(activeGeneration.id)}
@@ -1707,6 +1749,21 @@ export default function App() {
                 <div className="detail-text">{activeGeneration.tags || 'No tags'}</div>
               </div>
 
+              {(activeGeneration.postprocess_status || activeGeneration.postprocess_error_message) ? (
+                <div className="detail-block">
+                  <div className="detail-block-title">Audio post-process</div>
+                  <div className="detail-text">
+                    {activeGeneration.postprocess_status === 'running'
+                      ? 'Running ffmpeg post-processing chain.'
+                      : activeGeneration.postprocess_status === 'completed'
+                        ? `Completed${activeGeneration.postprocess_applied_at ? ` · ${formatTime(activeGeneration.postprocess_applied_at)}` : ''}`
+                        : activeGeneration.postprocess_status === 'failed'
+                          ? 'Failed'
+                          : 'Idle'}
+                  </div>
+                </div>
+              ) : null}
+
               {activeGeneration.cover_prompt ? (
                 <div className="detail-block">
                   <div className="detail-block-title">Cover concept</div>
@@ -1730,6 +1787,13 @@ export default function App() {
                 <div className="detail-block">
                   <div className="detail-block-title">Error</div>
                   <div className="detail-text error-text">{activeGeneration.error_message}</div>
+                </div>
+              ) : null}
+
+              {activeGeneration.postprocess_error_message ? (
+                <div className="detail-block">
+                  <div className="detail-block-title">Post-process error</div>
+                  <div className="detail-text error-text">{activeGeneration.postprocess_error_message}</div>
                 </div>
               ) : null}
             </div>

@@ -64,6 +64,10 @@ def init_db() -> None:
               cover_negative_prompt TEXT,
               cover_status TEXT,
               cover_error_message TEXT,
+              postprocess_status TEXT,
+              postprocess_error_message TEXT,
+              postprocess_audio_path TEXT,
+              postprocess_applied_at TEXT,
               workflow_path TEXT,
               error_message TEXT,
               comfyui_prompt_id TEXT,
@@ -91,6 +95,14 @@ def init_db() -> None:
             conn.execute("ALTER TABLE generations ADD COLUMN cover_status TEXT")
         if "cover_error_message" not in generation_columns:
             conn.execute("ALTER TABLE generations ADD COLUMN cover_error_message TEXT")
+        if "postprocess_status" not in generation_columns:
+            conn.execute("ALTER TABLE generations ADD COLUMN postprocess_status TEXT")
+        if "postprocess_error_message" not in generation_columns:
+            conn.execute("ALTER TABLE generations ADD COLUMN postprocess_error_message TEXT")
+        if "postprocess_audio_path" not in generation_columns:
+            conn.execute("ALTER TABLE generations ADD COLUMN postprocess_audio_path TEXT")
+        if "postprocess_applied_at" not in generation_columns:
+            conn.execute("ALTER TABLE generations ADD COLUMN postprocess_applied_at TEXT")
         seed_model_presets(conn)
 
 
@@ -123,6 +135,7 @@ def row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
 
 def enrich_generation(record: dict[str, Any]) -> dict[str, Any]:
     output_path = record.get("output_audio_path")
+    postprocess_audio_path = record.get("postprocess_audio_path")
     cover_image_path = record.get("cover_image_path")
     if not output_path:
         record["output_audio_url"] = None
@@ -135,6 +148,18 @@ def enrich_generation(record: dict[str, Any]) -> dict[str, Any]:
         else:
             record["output_audio_url"] = None
             record["output_audio_size"] = path.stat().st_size if path.exists() else None
+
+    if not postprocess_audio_path:
+        record["postprocess_audio_url"] = None
+        record["postprocess_audio_size"] = None
+    else:
+        postprocess_path = DATA_DIR.parent / str(postprocess_audio_path)
+        if postprocess_path.exists() and postprocess_path.stat().st_size > 0:
+            record["postprocess_audio_url"] = f"http://127.0.0.1:8001/files/audio/{postprocess_path.name}"
+            record["postprocess_audio_size"] = postprocess_path.stat().st_size
+        else:
+            record["postprocess_audio_url"] = None
+            record["postprocess_audio_size"] = postprocess_path.stat().st_size if postprocess_path.exists() else None
 
     if not cover_image_path:
         record["cover_image_url"] = None
@@ -195,6 +220,10 @@ def insert_generation(payload: dict[str, Any]) -> dict[str, Any]:
         "cover_negative_prompt": None,
         "cover_status": None,
         "cover_error_message": None,
+        "postprocess_status": None,
+        "postprocess_error_message": None,
+        "postprocess_audio_path": None,
+        "postprocess_applied_at": None,
         "workflow_path": None,
         "error_message": None,
         "comfyui_prompt_id": None,
@@ -209,11 +238,13 @@ def insert_generation(payload: dict[str, Any]) -> dict[str, Any]:
               id, project_id, model_preset_id, title, prompt, lyrics, tags, bpm, duration, timesignature,
               language, keyscale, seed, temperature, cfg_scale, status, output_audio_path,
               cover_image_path, cover_prompt, cover_negative_prompt, cover_status, cover_error_message,
+              postprocess_status, postprocess_error_message, postprocess_audio_path, postprocess_applied_at,
               workflow_path, error_message, comfyui_prompt_id, created_at, updated_at
             ) VALUES (
               :id, :project_id, :model_preset_id, :title, :prompt, :lyrics, :tags, :bpm, :duration, :timesignature,
               :language, :keyscale, :seed, :temperature, :cfg_scale, :status, :output_audio_path,
               :cover_image_path, :cover_prompt, :cover_negative_prompt, :cover_status, :cover_error_message,
+              :postprocess_status, :postprocess_error_message, :postprocess_audio_path, :postprocess_applied_at,
               :workflow_path, :error_message, :comfyui_prompt_id, :created_at, :updated_at
             )
             """,
@@ -249,6 +280,20 @@ def mark_generation_retry(generation_id: str) -> dict[str, Any] | None:
     generation = fetch_generation(generation_id)
     if generation is None:
         return None
+
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE generations
+            SET postprocess_status = NULL,
+                postprocess_error_message = NULL,
+                postprocess_audio_path = NULL,
+                postprocess_applied_at = NULL
+            WHERE id = ?
+            """,
+            (generation_id,),
+        )
+        conn.commit()
 
     update_generation_status(
         generation_id,
@@ -290,6 +335,37 @@ def update_generation_cover(
                 cover_prompt,
                 cover_negative_prompt,
                 cover_error_message,
+                now_iso(),
+                generation_id,
+            ),
+        )
+        conn.commit()
+
+
+def update_generation_postprocess(
+    generation_id: str,
+    *,
+    postprocess_status: str | None = None,
+    postprocess_error_message: str | None = None,
+    postprocess_audio_path: str | None = None,
+    postprocess_applied_at: str | None = None,
+) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE generations
+            SET postprocess_status = ?,
+                postprocess_error_message = ?,
+                postprocess_audio_path = ?,
+                postprocess_applied_at = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                postprocess_status,
+                postprocess_error_message,
+                postprocess_audio_path,
+                postprocess_applied_at,
                 now_iso(),
                 generation_id,
             ),

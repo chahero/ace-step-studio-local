@@ -17,7 +17,9 @@ from backend.db import (
     insert_generation,
     mark_generation_retry,
     update_generation_cover,
+    update_generation_postprocess,
     update_generation_status,
+    now_iso,
 )
 from backend.schemas import (
     GenerationCreate,
@@ -28,7 +30,7 @@ from backend.schemas import (
     PromptMetadataRequest,
     PromptTitleRequest,
 )
-from backend.services import comfyui, ollama, storage
+from backend.services import comfyui, ollama, postprocess, storage
 
 app = FastAPI(title="Ace Step Studio API", version="0.1.0")
 
@@ -98,7 +100,7 @@ def download_generation_audio(generation_id: str) -> FileResponse:
     if generation is None:
         raise HTTPException(status_code=404, detail="Generation not found")
 
-    output_audio_path = generation.get("output_audio_path")
+    output_audio_path = generation.get("postprocess_audio_path") or generation.get("output_audio_path")
     if not output_audio_path:
         raise HTTPException(status_code=404, detail="Audio file not found")
 
@@ -121,6 +123,9 @@ def create_generation(payload: GenerationCreate, background_tasks: BackgroundTas
 
 @app.post("/api/generations/{generation_id}/retry")
 def retry_generation(generation_id: str, background_tasks: BackgroundTasks) -> dict[str, object]:
+    existing = fetch_generation(generation_id)
+    if existing is not None:
+        storage.delete_postprocess_assets(existing)
     generation = mark_generation_retry(generation_id)
     if generation is None:
         raise HTTPException(status_code=404, detail="Generation not found")
@@ -135,6 +140,8 @@ def remove_generation(generation_id: str) -> dict[str, object]:
         raise HTTPException(status_code=404, detail="Generation not found")
     if generation["status"] == "running":
         raise HTTPException(status_code=409, detail="Cannot delete a generation while it is running")
+    if generation.get("postprocess_status") == "running":
+        raise HTTPException(status_code=409, detail="Cannot delete a generation while post-processing is running")
 
     storage.delete_generation_assets(generation)
     if not delete_generation(generation_id):
@@ -213,6 +220,34 @@ def generate_cover(generation_id: str, background_tasks: BackgroundTasks) -> dic
     return refreshed if refreshed is not None else {"id": generation_id, "cover_status": "running"}
 
 
+@app.post("/api/generations/{generation_id}/postprocess")
+def postprocess_generation(generation_id: str, background_tasks: BackgroundTasks) -> dict[str, object]:
+    generation = fetch_generation(generation_id)
+    if generation is None:
+        raise HTTPException(status_code=404, detail="Generation not found")
+    if generation["status"] != "completed":
+        raise HTTPException(status_code=409, detail="Finish generating the song before post-processing it")
+    if generation.get("postprocess_status") == "running":
+        raise HTTPException(status_code=409, detail="Post-processing is already running")
+    if not generation.get("output_audio_path"):
+        raise HTTPException(status_code=404, detail="Audio file not found")
+
+    existing_postprocess_audio_path = generation.get("postprocess_audio_path")
+    if existing_postprocess_audio_path:
+        storage.delete_postprocess_assets(generation)
+
+    update_generation_postprocess(
+        generation_id,
+        postprocess_status="running",
+        postprocess_error_message=None,
+        postprocess_audio_path=None,
+        postprocess_applied_at=None,
+    )
+    background_tasks.add_task(run_postprocess_job, generation_id)
+    refreshed = fetch_generation(generation_id)
+    return refreshed if refreshed is not None else {"id": generation_id, "postprocess_status": "running"}
+
+
 def run_generation_job(generation_id: str) -> None:
     generation = fetch_generation(generation_id)
     if generation is None:
@@ -278,4 +313,32 @@ def run_cover_job(generation_id: str) -> None:
             generation_id,
             cover_status="failed",
             cover_error_message=str(exc),
+        )
+
+
+def run_postprocess_job(generation_id: str) -> None:
+    generation = fetch_generation(generation_id)
+    if generation is None:
+        return
+
+    try:
+        input_audio_path = generation.get("output_audio_path")
+        if not input_audio_path:
+            raise RuntimeError("Audio file not found")
+
+        result = postprocess.postprocess_generation_audio(generation_id, str(input_audio_path))
+        update_generation_postprocess(
+            generation_id,
+            postprocess_status="completed",
+            postprocess_error_message=None,
+            postprocess_audio_path=result.get("postprocess_audio_path"),
+            postprocess_applied_at=now_iso(),
+        )
+    except Exception as exc:  # pragma: no cover - background execution safety
+        update_generation_postprocess(
+            generation_id,
+            postprocess_status="failed",
+            postprocess_error_message=str(exc),
+            postprocess_audio_path=None,
+            postprocess_applied_at=None,
         )

@@ -26,6 +26,12 @@ export type Generation = {
   output_audio_path?: string | null;
   output_audio_url?: string | null;
   output_audio_size?: number | null;
+  postprocess_status?: 'running' | 'completed' | 'failed' | null;
+  postprocess_error_message?: string | null;
+  postprocess_audio_path?: string | null;
+  postprocess_audio_url?: string | null;
+  postprocess_audio_size?: number | null;
+  postprocess_applied_at?: string | null;
   cover_image_path?: string | null;
   cover_image_url?: string | null;
   cover_image_size?: number | null;

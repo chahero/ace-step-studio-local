@@ -10,6 +10,7 @@ Suno-style local music generation studio built with ComfyUI, ACE-Step 1.5, and O
 - Ollama-assisted generation for `Caption / Tags`, `Metadata`, `Lyrics`, and `Title`
 - genre-guided prompt generation
 - local library with playback, hover play, bulk delete, and per-song action menu
+- manual audio post-processing with bundled `ffmpeg` (`gain -> loudnorm -> limiter`)
 - cover image generation through ComfyUI `flux2_klein`
 - clickable cover preview with lightbox view
 - local storage with SQLite, audio files, images, and metadata
@@ -36,6 +37,8 @@ COMFYUI_BASE_URL=http://127.0.0.1:8188
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=gemma4:e4b
 OUTPUT_DIR=./storage/audio
+FFMPEG_PATH=
+FFPROBE_PATH=
 ```
 
 ## ComfyUI Setup
@@ -108,6 +111,30 @@ Notes:
 - `start_backend.bat` reads `BACKEND_HOST` and `BACKEND_PORT` from `.env`, activates `.venv`, and runs the backend in the foreground.
 - `start_backend.sh` reads `BACKEND_HOST` and `BACKEND_PORT` from `.env`, activates `.venv`, and runs the backend in the background.
 - Frontend API calls read `VITE_API_HOST` and `VITE_API_PORT` from `.env`.
+
+## Bundled ffmpeg
+
+Audio post-processing uses bundled `ffmpeg` and `ffprobe`, not the system PATH.
+
+Place the binaries under:
+
+```txt
+bin/ffmpeg/<platform>/
+```
+
+Examples:
+
+- `bin/ffmpeg/windows-x64/ffmpeg.exe`
+- `bin/ffmpeg/windows-x64/ffprobe.exe`
+- `bin/ffmpeg/linux-x64/ffmpeg`
+- `bin/ffmpeg/linux-x64/ffprobe`
+
+You can override the bundled paths by setting:
+
+- `FFMPEG_PATH`
+- `FFPROBE_PATH`
+
+If these binaries are missing, manual `Post-process` actions in the song detail panel will fail with a descriptive error.
 
 ## Storage
 

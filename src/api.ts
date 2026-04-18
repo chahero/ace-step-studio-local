@@ -68,6 +68,12 @@ export async function generateCover(id: string): Promise<Generation> {
   });
 }
 
+export async function postprocessGeneration(id: string): Promise<Generation> {
+  return requestJSON<Generation>(`/generations/${id}/postprocess`, {
+    method: 'POST',
+  });
+}
+
 export async function assistPrompt(input: Record<string, unknown>): Promise<PromptAssistResponse> {
   return requestJSON<PromptAssistResponse>('/prompt/assist', {
     method: 'POST',
