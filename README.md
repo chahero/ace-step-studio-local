@@ -31,8 +31,9 @@ Example:
 ```env
 BACKEND_HOST=127.0.0.1
 BACKEND_PORT=8001
-VITE_API_HOST=127.0.0.1
-VITE_API_PORT=8001
+FRONTEND_HOST=127.0.0.1
+FRONTEND_PORT=5173
+VITE_API_BASE_URL=http://127.0.0.1:8001/api
 COMFYUI_BASE_URL=http://127.0.0.1:8188
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=gemma4:e4b
@@ -110,7 +111,8 @@ Notes:
 
 - `start_backend.bat` reads `BACKEND_HOST` and `BACKEND_PORT` from `.env`, activates `.venv`, and runs the backend in the foreground.
 - `start_backend.sh` reads `BACKEND_HOST` and `BACKEND_PORT` from `.env`, activates `.venv`, and runs the backend in the background.
-- Frontend API calls read `VITE_API_HOST` and `VITE_API_PORT` from `.env`.
+- `scripts/dev.mjs` reads `FRONTEND_HOST` and `FRONTEND_PORT` from `.env` for the Vite dev server.
+- Frontend API calls read `VITE_API_BASE_URL` from `.env`.
 
 ## Bundled ffmpeg
 

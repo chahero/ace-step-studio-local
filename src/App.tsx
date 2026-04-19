@@ -38,6 +38,8 @@ const SIDEBAR_MIN = 400;
 const SIDEBAR_MAX = 920;
 const DEFAULT_SIDEBAR_WIDTH = 520;
 const DETAIL_PANEL_WIDTH = 340;
+const FORM_DRAFT_STORAGE_KEY = 'ace-step-form-draft';
+const LIBRARY_PREFS_STORAGE_KEY = 'ace-step-library-prefs';
 type LibraryStatusFilter = 'all' | Generation['status'];
 type LibrarySortMode = 'newest' | 'oldest';
 
@@ -198,6 +200,18 @@ function formatAudioTime(seconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const remainder = totalSeconds % 60;
   return `${minutes}:${String(remainder).padStart(2, '0')}`;
+}
+
+function parseStoredJson<T>(value: string | null): T | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
 }
 
 function DiceIcon() {
@@ -361,12 +375,21 @@ export default function App() {
     void (async () => {
       try {
         const [modelData, generationData] = await Promise.all([loadModels(), loadGenerations()]);
+        const storedDraft = parseStoredJson<Partial<typeof defaultForm>>(window.localStorage.getItem(FORM_DRAFT_STORAGE_KEY));
         setModels(modelData);
         setGenerations(generationData);
-        setForm((current) => ({
-          ...current,
-          model_preset_id: current.model_preset_id || modelData[0]?.id || '',
-        }));
+        setForm((current) => {
+          const restored = storedDraft
+            ? {
+                ...current,
+                ...storedDraft,
+              }
+            : current;
+          return {
+            ...restored,
+            model_preset_id: restored.model_preset_id || modelData[0]?.id || '',
+          };
+        });
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : 'Failed to load studio data');
       }
@@ -396,6 +419,57 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem('ace-step-sidebar-width', String(sidebarWidth));
   }, [sidebarWidth]);
+
+  useEffect(() => {
+    const storedPrefs = parseStoredJson<{
+      librarySearch?: string;
+      libraryStatusFilter?: LibraryStatusFilter;
+      librarySortMode?: LibrarySortMode;
+    }>(window.localStorage.getItem(LIBRARY_PREFS_STORAGE_KEY));
+
+    if (!storedPrefs) {
+      return;
+    }
+
+    if (typeof storedPrefs.librarySearch === 'string') {
+      setLibrarySearch(storedPrefs.librarySearch);
+    }
+    if (storedPrefs.libraryStatusFilter && ['all', 'queued', 'running', 'completed', 'failed'].includes(storedPrefs.libraryStatusFilter)) {
+      setLibraryStatusFilter(storedPrefs.libraryStatusFilter);
+    }
+    if (storedPrefs.librarySortMode && ['newest', 'oldest'].includes(storedPrefs.librarySortMode)) {
+      setLibrarySortMode(storedPrefs.librarySortMode);
+    }
+  }, []);
+
+  useEffect(() => {
+    const draft = {
+      title: form.title,
+      prompt: form.prompt,
+      lyrics: form.lyrics,
+      tags: form.tags,
+      genre_category: form.genre_category,
+      model_preset_id: form.model_preset_id,
+      bpm: form.bpm,
+      duration: form.duration,
+      timesignature: form.timesignature,
+      language: form.language,
+      keyscale: form.keyscale,
+      seed: form.seed,
+      temperature: form.temperature,
+      cfg_scale: form.cfg_scale,
+    };
+    window.localStorage.setItem(FORM_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+  }, [form]);
+
+  useEffect(() => {
+    const prefs = {
+      librarySearch,
+      libraryStatusFilter,
+      librarySortMode,
+    };
+    window.localStorage.setItem(LIBRARY_PREFS_STORAGE_KEY, JSON.stringify(prefs));
+  }, [librarySearch, libraryStatusFilter, librarySortMode]);
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
