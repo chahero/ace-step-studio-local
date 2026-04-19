@@ -685,26 +685,6 @@ label,
   max-width: 320px;
 }
 
-.workspace-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-end;
-  margin-bottom: 16px;
-}
-
-.workspace-header h1 {
-  margin: 8px 0 0;
-  font-size: clamp(1.7rem, 2.3vw, 2.2rem);
-  line-height: 1;
-}
-
-.workspace-stats {
-  display: flex;
-  gap: 12px;
-  align-items: stretch;
-}
-
 .compact {
   padding: 14px 16px;
   min-width: 140px;
@@ -1737,19 +1717,6 @@ label,
     height: auto;
   }
 
-  .workspace-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .workspace-stats {
-    width: 100%;
-  }
-
-  .workspace-stats .compact {
-    flex: 1;
-  }
-
   .library-shell {
     grid-template-columns: 1fr;
   }
@@ -1784,11 +1751,6 @@ label,
 
   .preset-row-compact {
     grid-template-columns: 1fr;
-  }
-
-  .workspace-stats {
-    flex-direction: column;
-    width: 100%;
   }
 
   .history-item strong {

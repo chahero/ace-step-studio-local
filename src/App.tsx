@@ -953,14 +953,6 @@ export default function App() {
     });
   }
 
-  const selectedModel = models.find((model) => model.id === form.model_preset_id) ?? models[0] ?? null;
-  const generationCounts = {
-    queued: generations.filter((generation) => generation.status === 'queued').length,
-    running: generations.filter((generation) => generation.status === 'running').length,
-    completed: generations.filter((generation) => generation.status === 'completed').length,
-    failed: generations.filter((generation) => generation.status === 'failed').length,
-  };
-
   function getAudioUrl(generation?: Generation | null) {
     return generation?.postprocess_audio_url ?? generation?.output_audio_url ?? null;
   }
@@ -1518,23 +1510,6 @@ export default function App() {
       />
 
       <main className={`content ${isDetailPanelOpen && selectedGeneration ? 'has-detail-panel' : ''}`}>
-        <section className="workspace-header">
-          <div>
-            <div className="eyebrow">LOCAL STUDIO</div>
-            <h1>Ace Step Studio</h1>
-          </div>
-          <div className="workspace-stats">
-            <div className="stat-card compact">
-              <span>Selected Model</span>
-              <strong>{selectedModel?.name ?? 'No model'}</strong>
-            </div>
-            <div className="stat-card compact">
-              <span>Done</span>
-              <strong>{generationCounts.completed}</strong>
-            </div>
-          </div>
-        </section>
-
         {error ? <div className="error-banner">{error}</div> : null}
 
         <section className="library-shell">
